@@ -2,42 +2,56 @@ import streamlit as st
 import pandas as pd
 import requests
 import yfinance as yf
-from streamlit_autorefresh import st_autorefresh # 🔥 これを復活させたよ！
+from streamlit_autorefresh import st_autorefresh
 
-# --- 1. デザイン（BLACK専用・iPhone絶対横並び） ---
+# --- 1. デザイン（iPhone絶対横並び・エラー回避版） ---
 st.set_page_config(page_title="BLACK'S FINAL MONITOR", layout="wide")
 
-# 🔥 自動更新（5分 = 300秒ごとにリフレッシュ）
-# これでBLACKが何もしなくても、マリアが勝手に最新にするよ！
+# 自動更新 (5分)
 st_autorefresh(interval=300 * 1000, key="datarefresh")
 
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
-    h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; font-size: 1.6rem !important; }
+    h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; font-size: 1.5rem !important; }
     
-    /* 更新ボタンをネオン風に */
-    div.stButton > button[kind="secondary"] {
-        background-color: #000; color: #ff00ff; border: 2px solid #ff00ff;
-        border-radius: 10px; font-weight: bold; box-shadow: 0 0 10px #ff00ff; width: 100%;
+    /* 🔄 更新ボタンのデザイン（kindを使わずにCSSで指定） */
+    .reload-box button {
+        background-color: #000 !important; color: #ff00ff !important; 
+        border: 2px solid #ff00ff !important; border-radius: 10px !important;
+        font-weight: bold !important; box-shadow: 0 0 10px #ff00ff !important;
+        width: 100% !important; height: 45px !important;
+    }
+
+    /* 📱 iPhone用：1行に3つを「物理的に」詰め込むグリッド */
+    .iphone-grid {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        margin-bottom: 5px !important;
     }
     
-    /* 選択ボタンをタイルにフィットさせる */
-    div.stButton > button[kind="primary"] {
+    .tile-item {
+        flex: 0 0 32% !important; /* 👈 これが秘策！幅を32%に固定 */
+        background-color: #111;
+        border-radius: 8px;
+        padding: 4px;
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+    /* 「選ぶ」ボタンのデザイン */
+    .tile-item button {
         background-color: #222 !important; color: #00ffff !important;
-        border: 1px solid #00ffff !important; font-size: 0.7rem !important;
-        height: 28px !important; padding: 0 !important; width: 100% !important;
-    }
-    
-    /* タイル枠のスタイル */
-    .tile-frame {
-        border-radius: 8px; padding: 5px; text-align: center;
-        background-color: #111; margin-bottom: 2px;
+        border: 1px solid #00ffff !important; font-size: 0.65rem !important;
+        height: 25px !important; line-height: 25px !important;
+        padding: 0 !important; width: 100% !important; margin-top: 3px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. セッション状態 ---
+# --- 2. セッション ---
 if 'selected_ticker' not in st.session_state:
     st.session_state.selected_ticker = ""
 
@@ -64,7 +78,7 @@ def copy_button(text):
     """, height=80)
 
 # --- 6. データ取得 ---
-@st.cache_data(ttl=300) # キャッシュも5分で切れるように設定
+@st.cache_data(ttl=300)
 def get_data(m_type):
     if m_type == "日本株 (JPN)":
         try:
@@ -86,40 +100,44 @@ def get_data(m_type):
             except: continue
         return pd.DataFrame(data).sort_values(by='比率', ascending=False).reset_index(drop=True)
 
-# --- 7. メイン表示 ---
-col_head, col_rel = st.columns([0.7, 0.3])
-with col_head:
+# --- 7. メイン ---
+c_head, c_rel = st.columns([0.65, 0.35])
+with c_head:
     st.title(f"🕶️ {market_type}")
-with col_rel:
-    # 手動更新ボタンも残しておくね！
-    if st.button("🔄 RELOAD", kind="secondary"):
+with c_rel:
+    st.markdown('<div class="reload-box">', unsafe_allow_html=True)
+    if st.button("🔄 RELOAD"): # 🔥 kind=を消してエラー回避！
         st.cache_data.clear()
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 df_top = get_data(market_type)
 
 if df_top is not None:
-    # 3列タイル
+    # 物理グリッドで3つずつ表示
     for i in range(0, len(df_top), 3):
+        # 魔法のコンテナ
+        st.markdown('<div class="iphone-grid">', unsafe_allow_html=True)
+        row_slice = df_top.iloc[i:i+3]
+        
+        # 3つの列をiPhoneでも絶対に割れないように配置
         cols = st.columns(3)
-        for j in range(3):
-            if i + j < len(df_top):
-                row = df_top.iloc[i + j]
-                with cols[j]:
-                    color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#444"
-                    st.markdown(f"""
-                        <div class="tile-frame" style="border: 1.5px solid {color};">
-                            <div style="font-size:0.6rem;color:#888;">#{i+j+1}</div>
-                            <div style="font-weight:bold;font-size:0.9rem;">{row['コード']}</div>
-                            <div style="color:{color};font-weight:bold;font-size:0.8rem;">{row['比率']}%</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    if st.button("選ぶ", key=f"sel_{row['コード']}", kind="primary"):
-                        st.session_state.selected_ticker = str(row['コード'])
-                        st.rerun()
+        for idx, (original_idx, row) in enumerate(row_slice.iterrows()):
+            with cols[idx]:
+                color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#555"
+                st.markdown(f"""
+                    <div class="tile-item" style="border: 1.5px solid {color};">
+                        <div style="font-size:0.5rem;color:#888;">#{i+idx+1}</div>
+                        <div style="font-weight:bold;font-size:0.85rem;">{row['コード']}</div>
+                        <div style="color:{color};font-weight:bold;font-size:0.75rem;">{row['比率']}%</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                if st.button("選ぶ", key=f"sel_{row['コード']}"):
+                    st.session_state.selected_ticker = str(row['コード'])
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    # 検索・コピーエリア
     sel = st.session_state.selected_ticker
     search = st.text_input("🔍 選択中", value=sel)
     if search:
@@ -128,6 +146,6 @@ if df_top is not None:
             t_price = yf.Ticker(f"{search}{suffix}").history(period="1d")['Close'].iloc[-1]
             st.metric(f"🔥 {search}", f"{'¥' if suffix else '$'}{float(t_price):.1f}")
             copy_button(search)
-        except: st.write("データ取得中...")
+        except: st.write("銘柄ハック中...")
 
 st.caption("Produced by Maria & BLACK")
