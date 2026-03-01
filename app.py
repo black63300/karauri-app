@@ -98,3 +98,4 @@ else:
             st.markdown(f'<a href="{sbi_link_us}"><button style="width:100%; padding:15px; background:#400080; color:white; border-radius:10px; font-weight:bold; border:2px solid #ff00ff;">SBI証券 米国株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
 
 st.caption("Produced by Maria & BLACK")
+
