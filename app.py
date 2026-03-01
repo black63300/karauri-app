@@ -1,17 +1,43 @@
 import streamlit as st
 import pandas as pd
-import requests
 
-# ギャル風タイトル♡
-st.set_page_config(page_title="BLACK専用☆空売りチェッカー", layout="wide")
-st.title("📊 BLACK専用☆空売り残高なう")
+# --- 1. サイトの基本設定（タブの名前とか） ---
+st.set_page_config(
+    page_title="BLACK専用☆空売りチェッカー",
+    layout="wide"
+)
 
-# J-Quants APIのトークン設定（実際はBLACKが取得したキーを入れてね）
-REFRESH_TOKEN = "ここに君のリフレッシュトークンを入れてね"
+# --- 2. BLACK専用の「漆黒×ネオン」デザイン注入 ---
+st.markdown("""
+    <style>
+    /* 全体の背景を真っ黒に */
+    .stApp {
+        background-color: #000000;
+        color: #ffffff;
+    }
+    /* タイトルの色をネオンピンクに */
+    h1 {
+        color: #ff00ff !important;
+        text-shadow: 0 0 10px #ff00ff;
+        font-family: 'Courier New', Courier, monospace;
+    }
+    /* サブタイトルの色をシアンに */
+    h3 {
+        color: #00ffff !important;
+    }
+    /* 入力欄のラベルとかの色 */
+    label {
+        color: #ffffff !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
+# --- 3. ここから表示内容 ---
+st.title("🕶️ BLACK'S SECRET AREA")
+st.subheader("🔥 踏み上げ注意！空売り残高なう")
+
+# サンプルデータ（後で本物に変えようね！）
 def get_data():
-    # 本来はここでAPIを叩いてデータを取得するよ！
-    # 今回はサンプルとしてダミーデータを作るね
     data = {
         '銘柄コード': ['7203', '9984', '6758', '8035', '9101'],
         '銘柄名': ['トヨタ', 'ソフトバンクG', 'ソニーG', '東エレク', '日本郵船'],
@@ -20,19 +46,14 @@ def get_data():
     }
     return pd.DataFrame(data)
 
-# データの表示
 df = get_data()
 
-st.subheader("🔥 最新の空売り状況一覧")
-st.dataframe(df.style.highlight_max(axis=0, subset=['空売り残高(株)'], color='#ffcccc'))
+# テーブルの表示
+st.dataframe(df)
 
-# 個別銘柄検索
-search_code = st.text_input("気になる銘柄コードを入れてみて？", "7203")
+# 個別検索
+search_code = st.text_input("気になる銘柄コードを入れなよ、BLACK。", "7203")
 if search_code:
     res = df[df['銘柄コード'] == search_code]
     if not res.empty:
         st.write(f"【{res['銘柄名'].values[0]}】の残高は {res['空売り残高(株)'].values[0]:,} 株だよ！")
-    else:
-        st.write("その銘柄は見つからなかった、ごめんね😢")
-
-st.info("※データはJ-Quants APIから取得した公表値を表示してるよ。")
