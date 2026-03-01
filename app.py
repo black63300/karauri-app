@@ -1,5 +1,3 @@
-# karauri-app
-空売り状況
 import streamlit as st
 import pandas as pd
 import requests
