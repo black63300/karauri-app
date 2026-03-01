@@ -5,7 +5,7 @@ import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. デザイン（BLACK専用・漆黒ネオン） ---
-st.set_page_config(page_title="BLACK'S COLOR MONITOR", layout="wide")
+st.set_page_config(page_title="BLACK'S CLEAN MONITOR", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
@@ -72,7 +72,8 @@ def get_jp_data():
         if res_data.status_code == 200:
             df = pd.DataFrame(res_data.json().get("shorts", []))
             df = df.rename(columns={'Code': 'コード', 'ShortSellingFraction': '空売り比率(%)'})
-            df['空売り比率(%)'] = pd.to_numeric(df['空売り比率(%)'])
+            # 小数第1位に丸める
+            df['空売り比率(%)'] = pd.to_numeric(df['空売り比率(%)']).round(1)
             return df
     except: return None
 
@@ -84,7 +85,12 @@ def get_us_ranking():
             t = yf.Ticker(ticker)
             price = t.history(period="1d")['Close'].iloc[-1]
             short = t.info.get('shortPercentOfFloat', 0) * 100
-            data.append({"ティッカー": ticker, "株価($)": round(price, 2), "空売り比率(%)": round(short, 2)})
+            # 小数第1位に丸めて追加
+            data.append({
+                "ティッカー": ticker, 
+                "株価($)": round(float(price), 1), 
+                "空売り比率(%)": round(float(short), 1)
+            })
         except: continue
     return pd.DataFrame(data)
 
@@ -97,16 +103,14 @@ if market_type == "日本株 (JPN)":
         st.subheader("🏆 空売り比率 TOP30 (JPN)")
         top_30 = df_jp.sort_values(by='空売り比率(%)', ascending=False).head(30).copy()
         
-        # 株価取得
         prices = []
         for code in top_30['コード']:
             try:
                 p = yf.Ticker(f"{code}.T").history(period="1d")['Close'].iloc[-1]
-                prices.append(round(p, 1))
+                prices.append(round(float(p), 1))
             except: prices.append("-")
         top_30.insert(1, "株価(¥)", prices)
         
-        # 🔥 色付けを適用して表示
         st.dataframe(top_30.style.apply(highlight_jp, axis=1), use_container_width=True)
         
         st.markdown("---")
@@ -115,7 +119,7 @@ if market_type == "日本株 (JPN)":
             target = df_jp[df_jp['コード'].str.contains(search_jp)].copy()
             if not target.empty:
                 t_price = yf.Ticker(f"{search_jp}.T").history(period="1d")['Close'].iloc[-1]
-                st.metric("🔥 現在値", f"¥{t_price:,.1f}")
+                st.metric("🔥 現在値", f"¥{round(float(t_price), 1):,}")
                 st.metric("💀 空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
                 copy_button(search_jp)
 else:
@@ -124,14 +128,16 @@ else:
     if not df_us.empty:
         st.subheader("🇺🇸 監視ランキング (USA)")
         top_us = df_us.sort_values(by='空売り比率(%)', ascending=False)
-        # 🔥 色付けを適用して表示
         st.dataframe(top_us.style.apply(highlight_us, axis=1), use_container_width=True)
         
         st.markdown("---")
         search_us = st.text_input("🔍 ティッカーで検索", "TSLA").upper()
         if search_us:
-            t_price_us = yf.Ticker(search_us).history(period="1d")['Close'].iloc[-1]
-            st.metric(f"🔥 {search_us} 株価", f"${t_price_us:,.2f}")
+            t = yf.Ticker(search_us)
+            short_val = t.info.get('shortPercentOfFloat', 0) * 100
+            t_price_us = t.history(period="1d")['Close'].iloc[-1]
+            st.metric(f"🔥 {search_us} 株価", f"${round(float(t_price_us), 1):,}")
+            st.metric("💀 空売り比率", f"{round(float(short_val), 1)}%")
             copy_button(search_us)
 
 st.caption("Produced by Maria & BLACK")
