@@ -160,3 +160,4 @@ if df_top is not None:
         except: st.write("ハック中...")
 
 st.caption("Produced by Maria & BLACK")
+
