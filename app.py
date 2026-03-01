@@ -79,7 +79,7 @@ if market_type == "日本株 (JPN)":
                 c1.metric("現在の株価", f"¥{price:,.1f}", f"{change:+.2f}%")
                 c2.metric("空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
                 st.line_chart(ticker.history(period="1mo")['Close'])
-                # 日本株アプリへのリンク
+                # 日本株アプリリンク
                 sbi_link_jp = f"sbisec-stock://stock/{search_jp}/detail"
                 st.markdown(f'<a href="{sbi_link_jp}"><button style="width:100%; padding:15px; background:#0041ff; color:white; border-radius:10px; font-weight:bold; border:2px solid #00ffff;">SBI証券 日本株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
 else:
@@ -94,8 +94,8 @@ else:
             c2.markdown(f"### 💀 空売り比率\n<h2 style='color:{short_color};'>{data_us['short']:.2f}%</h2>", unsafe_allow_html=True)
             st.line_chart(yf.Ticker(search_us).history(period="1mo")['Close'])
             
-            # 🔥 米国株アプリへのリンク（修正版：一番シンプルな形にしたよ！）
-            sbi_link_us = f"sbisec-usstock://stock/detail?ticker={search_us}"
+            # 🔥 SBI米国株アプリへのリンクを「sbisec-us-stock」に再修正
+            sbi_link_us = f"sbisec-us-stock://stock/{search_us}/detail"
             st.markdown(f'<a href="{sbi_link_us}"><button style="width:100%; padding:15px; background:#400080; color:white; border-radius:10px; font-weight:bold; border:2px solid #ff00ff;">SBI証券 米国株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
 
 st.caption("Produced by Maria & BLACK")
