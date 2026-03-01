@@ -5,7 +5,7 @@ import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. デザイン（BLACK専用・可変グリッド） ---
-st.set_page_config(page_title="BLACK'S FULL MONITOR", layout="wide")
+st.set_page_config(page_title="BLACK'S VARIABLE MONITOR", layout="wide")
 
 # 自動更新 (5分)
 st_autorefresh(interval=300 * 1000, key="datarefresh")
@@ -15,13 +15,13 @@ st.markdown("""
     .stApp { background-color: #000000; color: #ffffff; }
     h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; font-size: 1.5rem !important; }
     
-    /* 📱 縦画面：3カラム */
+    /* 📱 縦画面（デフォルト）：3カラム */
     [data-testid="column"] {
         flex: 1 1 calc(33.333% - 8px) !important;
         min-width: calc(33.333% - 8px) !important;
     }
 
-    /* 📱 横画面：6カラム */
+    /* 📱 横画面（ワイド）：6カラムに強制変更 */
     @media (min-width: 600px) {
         [data-testid="column"] {
             flex: 1 1 calc(16.666% - 8px) !important;
@@ -43,6 +43,7 @@ st.markdown("""
         box-shadow: 0 0 5px #00ffff !important;
     }
     
+    /* 更新ボタン（上部） */
     .reload-box button {
         background-color: #000 !important; color: #ff00ff !important;
         border: 2px solid #ff00ff !important; height: 40px !important;
@@ -99,7 +100,6 @@ def get_data(m_type):
                 info = yf.Ticker(t).info
                 data.append({"コード": t, "比率": round(info.get('shortPercentOfFloat', 0) * 100, 1)})
             except: continue
-        # 米国株も30位まで表示したい場合は、リストを増やすか取得ロジックを変える必要があるけど、今は一旦このリストを出すね
         return pd.DataFrame(data).sort_values(by='比率', ascending=False).reset_index(drop=True)
 
 # --- 6. メイン表示 ---
@@ -116,27 +116,24 @@ with c_reload:
 df_top = get_data(market_type)
 
 if df_top is not None:
-    # 🏆 30位までしっかり回す！
-    # 6列ずつ表示するループ
-    num_rows = len(df_top)
-    for i in range(0, num_rows, 6):
+    # 物理グリッド（横画面で6つ並ぶように多めにカラムを切る）
+    # Streamlitは動的にカラム数を変えられないので、CSS側で制御
+    for i in range(0, len(df_top), 6):
         cols = st.columns(6)
-        for j in range(6):
-            idx = i + j
-            if idx < num_rows:
-                row = df_top.iloc[idx]
-                with cols[j]:
-                    color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#555"
-                    st.markdown(f"""
-                        <div class="tile-item" style="border: 1.5px solid {color};">
-                            <div style="font-size:0.5rem;color:#888;">#{idx+1}</div>
-                            <div style="font-weight:bold;font-size:0.8rem;">{row['コード']}</div>
-                            <div style="color:{color};font-weight:bold;font-size:0.7rem;">{row['比率']}%</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    if st.button("選ぶ", key=f"sel_{row['コード']}_{idx}"):
-                        st.session_state.selected_ticker = str(row['コード'])
-                        st.rerun()
+        row_slice = df_top.iloc[i:i+6]
+        for idx, (original_idx, row) in enumerate(row_slice.iterrows()):
+            with cols[idx]:
+                color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#555"
+                st.markdown(f"""
+                    <div class="tile-item" style="border: 1.5px solid {color};">
+                        <div style="font-size:0.5rem;color:#888;">#{i+idx+1}</div>
+                        <div style="font-weight:bold;font-size:0.8rem;">{row['コード']}</div>
+                        <div style="color:{color};font-weight:bold;font-size:0.7rem;">{row['比率']}%</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                if st.button("選ぶ", key=f"sel_{row['コード']}"):
+                    st.session_state.selected_ticker = str(row['コード'])
+                    st.rerun()
 
     st.markdown("---")
     search = st.text_input("🔍 選択中", value=st.session_state.selected_ticker)
@@ -146,6 +143,6 @@ if df_top is not None:
             t_price = yf.Ticker(f"{search}{suffix}").history(period="1d")['Close'].iloc[-1]
             st.metric(f"🔥 {search}", f"{'¥' if suffix else '$'}{float(t_price):.1f}")
             copy_button(search)
-        except: st.write("ハック中...")
+        except: st.write("銘柄ハック中...")
 
 st.caption("Produced by Maria & BLACK")
