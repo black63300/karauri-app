@@ -4,34 +4,47 @@ import requests
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. デザイン（BLACK専用・タイルレイアウト） ---
+# --- 1. デザイン（BLACK専用・強制タイルCSS） ---
 st.set_page_config(page_title="BLACK'S TILE MONITOR", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
-    h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; margin-bottom: 0px; }
-    .stMetric { background-color: #111111; border: 1px solid #00ffff; border-radius: 10px; padding: 5px; }
-    [data-testid="stMetricValue"] { color: #ffffff !important; font-size: 1.5rem !important; }
-    section[data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #ff00ff; }
+    h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; margin-bottom: 0px; font-size: 1.8rem !important; }
+    
+    /* 強制3カラム用のコンテナ */
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 20px;
+    }
     
     /* タイル（カード）のデザイン */
-    .stock-card {
+    .tile {
         background-color: #111;
-        border: 1px solid #333;
-        border-radius: 10px;
-        padding: 10px;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    /* ボタンをタイルにフィットさせる */
-    .stButton > button {
-        width: 100%;
-        background-color: #222;
-        color: #00ffff;
-        border: 1px solid #00ffff;
         border-radius: 8px;
-        font-weight: bold;
-        padding: 5px;
+        padding: 8px;
+        text-align: center;
+        position: relative;
+    }
+    
+    /* 銘柄コード */
+    .tile-code { font-weight: bold; font-size: 1rem; display: block; margin-top: 5px; }
+    /* 比率 */
+    .tile-ratio { font-size: 0.9rem; font-weight: bold; }
+    /* 順位 */
+    .tile-rank { font-size: 0.7rem; color: #888; display: block; }
+
+    /* Streamlit標準ボタンの見た目を調整（タイル内にフィット） */
+    div.stButton > button {
+        height: 25px !important;
+        line-height: 25px !important;
+        padding: 0px !important;
+        font-size: 0.7rem !important;
+        margin-top: 5px !important;
+        background-color: #222 !important;
+        color: #00ffff !important;
+        border: 1px solid #00ffff !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -103,42 +116,45 @@ st.title(f"🕶️ {market_type}")
 df = get_jp_data() if market_type == "日本株 (JPN)" else get_us_ranking()
 
 if df is not None:
-    st.write(f"🏆 空売り比率 TOP30")
+    st.subheader("🏆 空売り比率 TOP30")
     top_30 = df.sort_values(by='比率', ascending=False).head(30).reset_index(drop=True)
     
-    # 🔥 1列3タイルのグリッドを作成
-    for i in range(0, len(top_30), 3):
-        cols = st.columns(3)
-        for j in range(3):
-            if i + j < len(top_30):
-                row = top_30.iloc[i + j]
-                with cols[j]:
-                    # 比率によって色を変える
-                    border_color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#333"
-                    st.markdown(f"""
-                        <div style="border: 2px solid {border_color}; border-radius:10px; padding:5px; text-align:center; margin-bottom:5px;">
-                            <span style="font-size:0.8rem; color:#888;">#{i+j+1}</span><br>
-                            <b style="font-size:1.1rem;">{row['コード']}</b><br>
-                            <span style="color:{border_color}; font-weight:bold;">{row['比率']}%</span>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    if st.button("選ぶ", key=f"btn_{row['コード']}"):
-                        st.session_state.selected_ticker = str(row['コード'])
+    # 🔥 強制グリッドレイアウトの開始
+    st.markdown('<div class="grid-container">', unsafe_allow_html=True)
+    
+    # 3つずつカラムを作って配置するのではなく、1つずつボタンとHTMLを組む
+    for i, row in top_30.iterrows():
+        with st.container():
+            # タイル表示
+            color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#555"
+            st.markdown(f"""
+                <div class="tile" style="border: 2px solid {color};">
+                    <span class="tile-rank">#{i+1}</span>
+                    <span class="tile-code">{row['コード']}</span>
+                    <span class="tile-ratio" style="color:{color};">{row['比率']}%</span>
+                </div>
+            """, unsafe_allow_html=True)
+            # 選択ボタン
+            if st.button("選ぶ", key=f"btn_{row['コード']}"):
+                st.session_state.selected_ticker = str(row['コード'])
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True) # グリッド終了
 
     st.markdown("---")
     # 検索・詳細エリア
     val = st.session_state.selected_ticker
     if market_type == "日本株 (JPN)":
-        search = st.text_input("🔍 銘柄選択中", value=val if val.isdigit() else "")
+        search = st.text_input("🔍 選択中", value=val if val.isdigit() else "")
         if search:
             t_price = yf.Ticker(f"{search}.T").history(period="1d")['Close'].iloc[-1]
-            st.metric(f"🔥 {search} 株価", f"¥{float(t_price):.1f}")
+            st.metric(f"🔥 {search}", f"¥{float(t_price):.1f}")
             copy_button(search)
     else:
-        search = st.text_input("🔍 銘柄選択中", value=val if not val.isdigit() else "").upper()
+        search = st.text_input("🔍 選択中", value=val if not val.isdigit() else "").upper()
         if search:
             t_price = yf.Ticker(search).history(period="1d")['Close'].iloc[-1]
-            st.metric(f"🔥 {search} 株価", f"${float(t_price):.1f}")
+            st.metric(f"🔥 {search}", f"${float(t_price):.1f}")
             copy_button(search)
 
 st.caption("Produced by Maria & BLACK")
