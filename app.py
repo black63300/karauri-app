@@ -5,7 +5,7 @@ import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. デザイン（BLACK専用・漆黒ネオン） ---
-st.set_page_config(page_title="BLACK'S MONITOR", layout="wide")
+st.set_page_config(page_title="BLACK'S RANKING MONITOR", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
@@ -13,10 +13,12 @@ st.markdown("""
     .stMetric { background-color: #111111; border: 1px solid #00ffff; border-radius: 10px; padding: 10px; }
     [data-testid="stMetricValue"] { color: #ffffff !important; }
     section[data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #ff00ff; }
+    /* テーブルの見た目もハック */
+    .stDataFrame { border: 1px solid #ff00ff !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. サイドバー：市場切り替え ---
+# --- 2. サイドバー設定 ---
 st.sidebar.title("🌍 GLOBAL SETTING")
 market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
 
@@ -31,17 +33,7 @@ except:
     st.error("🔑 秘密の金庫に鍵がないよ！")
     st.stop()
 
-# --- 4. データ取得 ---
-def get_us_data(ticker):
-    try:
-        t = yf.Ticker(ticker)
-        info = t.info
-        short = info.get('shortPercentOfFloat', 0) * 100
-        hist = t.history(period="2d")
-        if not hist.empty:
-            return {"price": hist['Close'].iloc[-1], "short": short, "name": info.get('longName', ticker)}
-    except: return None
-
+# --- 4. データ取得エンジン ---
 def get_jp_data():
     try:
         auth_url = "https://api.jquants.com/v1/token/auth_refresh"
@@ -51,35 +43,51 @@ def get_jp_data():
         res_data = requests.get("https://api.jquants.com/v1/shorts/info", headers=headers)
         if res_data.status_code == 200:
             df = pd.DataFrame(res_data.json().get("shorts", []))
-            df = df.rename(columns={'Code': 'コード', 'ShortSellingFraction': '空売り比率(%)'})
+            df = df.rename(columns={'Code': 'コード', 'ShortSellingFraction': '空売り比率(%)', 'Date': '日付'})
             df['空売り比率(%)'] = pd.to_numeric(df['空売り比率(%)'])
             return df
+        return None
     except: return None
+
+def highlight_risky(row):
+    # 20%以上はネオンピンク、15%以上はイエロー
+    val = float(row['空売り比率(%)'])
+    if val >= 20.0: return ['background-color: #ff00ff; color: #ffffff; font-weight: bold'] * len(row)
+    elif val >= 15.0: return ['background-color: #ffff00; color: #000000;'] * len(row)
+    return [''] * len(row)
 
 # --- 5. メイン表示 ---
 st.title(f"🕶️ {market_type} MONITOR")
 
 if market_type == "日本株 (JPN)":
     df_jp = get_jp_data()
-    search_jp = st.text_input("コード4桁を入れてね", "7203")
-    if df_jp is not None and search_jp:
-        target = df_jp[df_jp['コード'].str.contains(search_jp)].copy()
-        if not target.empty:
-            c1, c2 = st.columns(2)
-            c1.metric("空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
-            st.info(f"👉 銘柄コード '{search_jp}' をコピーしてSBIアプリへ！")
-            st.line_chart(yf.Ticker(f"{search_jp}.T").history(period="1mo")['Close'])
+    
+    if df_jp is not None and not df_jp.empty:
+        # 🔥 空売り比率 TOP30 リスト表示
+        st.subheader("🏆 空売り比率ランキング TOP30")
+        top_30 = df_jp.sort_values(by='空売り比率(%)', ascending=False).head(30)
+        st.dataframe(top_30.style.apply(highlight_risky, axis=1), use_container_width=True)
+        
+        st.write("---")
+        
+        # 個別検索機能
+        search_jp = st.text_input("銘柄コードで詳細をハック...", "7203")
+        if search_jp:
+            target = df_jp[df_jp['コード'].str.contains(search_jp)].copy()
+            if not target.empty:
+                st.metric("💀 ターゲットの空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
+                st.line_chart(yf.Ticker(f"{search_jp}.T").history(period="1mo")['Close'])
+    else:
+        st.info("今はデータがないみたい。月曜日の夕方を待とう！")
+
 else:
-    search_us = st.text_input("ティッカーを入れてね", "TSLA").upper()
+    # 米国株は yfinance で一括ランキング取得が難しいため、BLACKの注目銘柄を並べる形式がおすすめ
+    st.info("米国株は個別ティッカー（TSLA等）を入力してチェックしてね！")
+    search_us = st.text_input("ティッカー入力", "TSLA").upper()
     if search_us:
-        data = get_us_data(search_us)
-        if data:
-            st.subheader(data['name'])
-            c1, c2 = st.columns(2)
-            c1.metric("現在値", f"${data['price']:,.2f}")
-            short_color = "#ff00ff" if data['short'] > 15 else "#ffffff"
-            c2.markdown(f"### 💀 空売り比率\n<h2 style='color:{short_color};'>{data['short']:.2f}%</h2>", unsafe_allow_html=True)
-            st.info(f"👉 ティッカー '{search_us}' をコピーしてSBI米国株アプリへ！")
-            st.line_chart(yf.Ticker(search_us).history(period="1mo")['Close'])
+        t = yf.Ticker(search_us)
+        short = t.info.get('shortPercentOfFloat', 0) * 100
+        st.metric(f"🔥 {search_us} 空売り比率", f"{short:.2f}%")
+        st.line_chart(t.history(period="1mo")['Close'])
 
 st.caption("Produced by Maria & BLACK")
