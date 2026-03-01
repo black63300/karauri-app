@@ -63,3 +63,7 @@ if df is not None and not df.empty:
 else:
     st.error("データが取れなかったよ。APIの更新時間を待つか、設定を確認してね。")
     st.info("※土日は東証がお休みだから、最新データは金曜日の分になるよ！")
+# 一番下の st.info(...) のすぐ下にこれを追加！
+st.markdown("---")
+st.button("最新データに更新する") # ポチッと押してデータを呼び直すボタン！
+st.caption("Produced by Maria & BLACK")
