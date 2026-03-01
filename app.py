@@ -5,7 +5,7 @@ import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. デザイン（BLACK専用） ---
-st.set_page_config(page_title="BLACK'S GLOBAL RANKING", layout="wide")
+st.set_page_config(page_title="BLACK'S RANKING MONITOR", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
@@ -13,12 +13,22 @@ st.markdown("""
     .stMetric { background-color: #111111; border: 1px solid #00ffff; border-radius: 10px; padding: 10px; }
     [data-testid="stMetricValue"] { color: #ffffff !important; }
     section[data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #ff00ff; }
+    /* ボタンをネオン風に */
+    .stButton > button {
+        background-color: #000000; color: #ff00ff; border: 2px solid #ff00ff;
+        border-radius: 10px; font-weight: bold; box-shadow: 0 0 10px #ff00ff;
+    }
+    .stButton > button:hover { background-color: #ff00ff; color: #ffffff; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. サイドバー ---
+# --- 2. サイドバー設定 ---
 st.sidebar.title("🌍 GLOBAL SETTING")
 market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
+
+refresh_mode = st.sidebar.selectbox("自動更新（バックグラウンド）", ["OFF", "5分", "10分"], index=0)
+if "分" in refresh_mode:
+    st_autorefresh(interval=int(refresh_mode.replace("分", "")) * 60 * 1000, key="refresh")
 
 # --- 3. 秘密の鍵 ---
 try:
@@ -28,6 +38,7 @@ except:
     st.stop()
 
 # --- 4. データ取得エンジン ---
+@st.cache_data(ttl=300) # 5分間はキャッシュして高速化
 def get_jp_data():
     try:
         auth_url = "https://api.jquants.com/v1/token/auth_refresh"
@@ -44,7 +55,6 @@ def get_jp_data():
     except: return None
 
 def get_us_ranking():
-    # BLACKが気になりそうな主要・爆益銘柄リスト
     watch_list = ["TSLA", "NVDA", "AAPL", "AMZN", "META", "GOOGL", "MSFT", "AMD", "NFLX", "GME", "AMC", "PLTR", "COIN", "MARA", "RIOT"]
     data = []
     for ticker in watch_list:
@@ -63,7 +73,14 @@ def highlight_risky(row):
     return [''] * len(row)
 
 # --- 5. メイン表示 ---
-st.title(f"🕶️ {market_type} MONITOR")
+col_h1, col_btn = st.columns([0.8, 0.2])
+with col_h1:
+    st.title(f"🕶️ {market_type} MONITOR")
+with col_btn:
+    # 🔥 手動更新ボタン
+    if st.button("🔄 RELOAD"):
+        st.cache_data.clear()
+        st.rerun()
 
 if market_type == "日本株 (JPN)":
     df_jp = get_jp_data()
@@ -72,18 +89,11 @@ if market_type == "日本株 (JPN)":
         top_30_jp = df_jp.sort_values(by='空売り比率(%)', ascending=False).head(30)
         st.dataframe(top_30_jp.style.apply(highlight_risky, axis=1), use_container_width=True)
 else:
-    with st.spinner('NYのデータをハック中...🗽'):
+    with st.spinner('NY市場をハック中...🗽'):
         df_us = get_us_ranking()
     if not df_us.empty:
-        st.subheader("🇺🇸 米国株 監視リスト・ランキング")
+        st.subheader("🇺🇸 米国株 監視ランキング")
         top_us = df_us.sort_values(by='空売り比率(%)', ascending=False)
         st.dataframe(top_us.style.apply(highlight_risky, axis=1), use_container_width=True)
-        
-        st.write("---")
-        search_us = st.text_input("個別ティッカー検索", "TSLA").upper()
-        if search_us:
-            t_info = yf.Ticker(search_us).info
-            st.metric(f"🔥 {search_us}", f"{t_info.get('shortPercentOfFloat', 0)*100:.2f}%")
-            st.line_chart(yf.Ticker(search_us).history(period="1mo")['Close'])
 
 st.caption("Produced by Maria & BLACK")
