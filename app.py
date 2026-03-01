@@ -5,12 +5,11 @@ import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. デザイン（BLACK専用・漆黒ネオン） ---
-st.set_page_config(page_title="BLACK'S PRICE MONITOR", layout="wide")
+st.set_page_config(page_title="BLACK'S COLOR MONITOR", layout="wide")
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
     h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; }
-    h3 { color: #00ffff !important; }
     .stMetric { background-color: #111111; border: 1px solid #00ffff; border-radius: 10px; padding: 10px; }
     [data-testid="stMetricValue"] { color: #ffffff !important; }
     section[data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #ff00ff; }
@@ -21,10 +20,6 @@ st.markdown("""
 # --- 2. サイドバー設定 ---
 st.sidebar.title("🌍 GLOBAL SETTING")
 market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
-
-refresh_mode = st.sidebar.selectbox("自動更新", ["OFF", "5分", "10分"], index=0)
-if "分" in refresh_mode:
-    st_autorefresh(interval=int(refresh_mode.replace("分", "")) * 60 * 1000, key="refresh")
 
 # --- 3. 秘密の鍵 ---
 try:
@@ -52,7 +47,20 @@ def copy_button(text):
         </script>
     """, height=80)
 
-# --- 5. データ取得エンジン ---
+# --- 5. 色付けの魔法（ハイライト関数） ---
+def highlight_jp(row):
+    val = float(row['空売り比率(%)'])
+    if val >= 20.0: return ['background-color: #ff00ff; color: #ffffff; font-weight: bold'] * len(row)
+    elif val >= 15.0: return ['background-color: #ffff00; color: #000000;'] * len(row)
+    return [''] * len(row)
+
+def highlight_us(row):
+    val = float(row['空売り比率(%)'])
+    if val >= 20.0: return ['background-color: #ff00ff; color: #ffffff; font-weight: bold'] * len(row)
+    elif val >= 10.0: return ['background-color: #ffff00; color: #000000;'] * len(row)
+    return [''] * len(row)
+
+# --- 6. データ取得エンジン ---
 @st.cache_data(ttl=300)
 def get_jp_data():
     try:
@@ -80,7 +88,7 @@ def get_us_ranking():
         except: continue
     return pd.DataFrame(data)
 
-# --- 6. メイン表示 ---
+# --- 7. メイン表示 ---
 st.title(f"🕶️ {market_type} MONITOR")
 
 if market_type == "日本株 (JPN)":
@@ -89,16 +97,17 @@ if market_type == "日本株 (JPN)":
         st.subheader("🏆 空売り比率 TOP30 (JPN)")
         top_30 = df_jp.sort_values(by='空売り比率(%)', ascending=False).head(30).copy()
         
-        # 日本株の現在値を yfinance で取得（少し時間がかかるので上位のみ）
+        # 株価取得
         prices = []
         for code in top_30['コード']:
             try:
                 p = yf.Ticker(f"{code}.T").history(period="1d")['Close'].iloc[-1]
                 prices.append(round(p, 1))
             except: prices.append("-")
-        top_30.insert(1, "株価(¥)", prices) # 左から2番目に挿入
+        top_30.insert(1, "株価(¥)", prices)
         
-        st.dataframe(top_30, use_container_width=True)
+        # 🔥 色付けを適用して表示
+        st.dataframe(top_30.style.apply(highlight_jp, axis=1), use_container_width=True)
         
         st.markdown("---")
         search_jp = st.text_input("🔍 銘柄コード4桁で検索", "7203")
@@ -106,29 +115,23 @@ if market_type == "日本株 (JPN)":
             target = df_jp[df_jp['コード'].str.contains(search_jp)].copy()
             if not target.empty:
                 t_price = yf.Ticker(f"{search_jp}.T").history(period="1d")['Close'].iloc[-1]
-                c1, c2 = st.columns(2)
-                c1.metric("🔥 現在値", f"¥{t_price:,.1f}")
-                c2.metric("💀 空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
+                st.metric("🔥 現在値", f"¥{t_price:,.1f}")
+                st.metric("💀 空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
                 copy_button(search_jp)
-                st.line_chart(yf.Ticker(f"{search_jp}.T").history(period="1mo")['Close'])
 else:
     with st.spinner('NY市場をハック中...🗽'):
         df_us = get_us_ranking()
     if not df_us.empty:
         st.subheader("🇺🇸 監視ランキング (USA)")
         top_us = df_us.sort_values(by='空売り比率(%)', ascending=False)
-        st.dataframe(top_us, use_container_width=True) # 米国株も株価入りの表を表示
+        # 🔥 色付けを適用して表示
+        st.dataframe(top_us.style.apply(highlight_us, axis=1), use_container_width=True)
         
         st.markdown("---")
         search_us = st.text_input("🔍 ティッカーで検索", "TSLA").upper()
         if search_us:
-            t = yf.Ticker(search_us)
-            short_val = t.info.get('shortPercentOfFloat', 0) * 100
-            t_price_us = t.history(period="1d")['Close'].iloc[-1]
-            c1, c2 = st.columns(2)
-            c1.metric(f"🔥 {search_us} 株価", f"${t_price_us:,.2f}")
-            c2.metric("💀 空売り比率", f"{short_val:.2f}%")
+            t_price_us = yf.Ticker(search_us).history(period="1d")['Close'].iloc[-1]
+            st.metric(f"🔥 {search_us} 株価", f"${t_price_us:,.2f}")
             copy_button(search_us)
-            st.line_chart(t.history(period="1mo")['Close'])
 
 st.caption("Produced by Maria & BLACK")
