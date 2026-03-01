@@ -7,7 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 # --- 1. サイト設定 ---
 st.set_page_config(page_title="BLACK'S GLOBAL MONITOR", layout="wide")
 
-# --- 2. 漆黒×ネオンデザイン ---
+# --- 2. 漆黒デザイン ---
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
@@ -18,22 +18,22 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. サイドバー：日米切り替え & タイマー ---
+# --- 3. サイドバー ---
 st.sidebar.title("🌍 GLOBAL SETTING")
-market_type = st.sidebar.radio("市場を選びなよ、BLACK。", ["日本株 (JPN)", "米国株 (USA)"])
+market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
 
-refresh_mode = st.sidebar.selectbox("更新間隔", ["OFF", "5分", "10分"], index=0)
+refresh_mode = st.sidebar.selectbox("自動更新", ["OFF", "5分", "10分"], index=0)
 if "分" in refresh_mode:
     st_autorefresh(interval=int(refresh_mode.replace("分", "")) * 60 * 1000, key="refresh")
 
-# --- 4. 共通の秘密の鍵 ---
+# --- 4. 秘密の鍵 ---
 try:
     REFRESH_TOKEN = st.secrets["JQUANTS_REFRESH_TOKEN"]
 except:
-    st.error("🔑 秘密の金庫（Secrets）に鍵がないよ！")
+    st.error("🔑 秘密の金庫に鍵がないよ！")
     st.stop()
 
-# --- 5. 米国株データ取得エンジン ---
+# --- 5. データ取得関数 ---
 def get_us_data(ticker_symbol):
     try:
         ticker = yf.Ticker(ticker_symbol)
@@ -46,7 +46,6 @@ def get_us_data(ticker_symbol):
         return {"price": last_price, "change": f"{change:+.2f}%", "short": short_ratio, "name": info.get('longName', ticker_symbol)}
     except: return None
 
-# --- 6. 日本株データ取得エンジン ---
 def get_jp_data():
     try:
         auth_url = "https://api.jquants.com/v1/token/auth_refresh"
@@ -62,12 +61,12 @@ def get_jp_data():
         return None
     except: return None
 
-# --- 7. メイン画面 ---
+# --- 6. メイン表示 ---
 st.title(f"🕶️ BLACK'S {market_type} MONITOR")
 
 if market_type == "日本株 (JPN)":
     df_jp = get_jp_data()
-    search_jp = st.text_input("銘柄コード（4桁）を入力...", "7203")
+    search_jp = st.text_input("銘柄コード（4桁）", "7203")
     if df_jp is not None and search_jp:
         target = df_jp[df_jp['コード'].str.contains(search_jp)].copy()
         if not target.empty:
@@ -75,37 +74,27 @@ if market_type == "日本株 (JPN)":
             hist = ticker.history(period="2d")
             price = hist['Close'].iloc[-1]
             change = ((price - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
-            
             c1, c2 = st.columns(2)
             c1.metric("現在の株価", f"¥{price:,.1f}", f"{change:+.2f}%")
             c2.metric("空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
-            
             st.line_chart(ticker.history(period="1mo")['Close'])
-            
-            # 🚀 日本株アプリへ
+            # 日本株アプリリンク
             sbi_link_jp = f"sbisec-stock://stock/{search_jp}/detail"
             st.markdown(f'<a href="{sbi_link_jp}"><button style="width:100%; padding:15px; background:#0041ff; color:white; border-radius:10px; font-weight:bold; border:2px solid #00ffff;">SBI証券 日本株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
-    else:
-        st.info("データ取得中、または月曜日の更新待ちだよ！")
-
 else:
-    # 🇺🇸 米国株モード
-    search_us = st.text_input("ティッカーを入れなよ（例: TSLA）", "TSLA").upper()
+    search_us = st.text_input("ティッカー（例: TSLA）", "TSLA").upper()
     if search_us:
         data_us = get_us_data(search_us)
         if data_us:
             st.subheader(f"🔥 {data_us['name']}")
             c1, c2 = st.columns(2)
             c1.metric("現在の株価", f"${data_us['price']:,.2f}", data_us['change'])
-            
-            # 空売り比率が15%超えで光らせる
             short_color = "#ff00ff" if data_us['short'] > 15 else "#ffffff"
             c2.markdown(f"### 💀 空売り比率\n<h2 style='color:{short_color};'>{data_us['short']:.2f}%</h2>", unsafe_allow_html=True)
-            
             st.line_chart(yf.Ticker(search_us).history(period="1mo")['Close'])
-            
-            # 🚀 米国株アプリへ
-            sbi_link_us = f"sbisec-us-stock://stock/{search_us}/detail"
+            # 🔥 米国株アプリリンク（修正版）
+            # 米国株アプリを直接起動するためのURL
+            sbi_link_us = f"sbisec-usstock://stock/detail?ticker={search_us}"
             st.markdown(f'<a href="{sbi_link_us}"><button style="width:100%; padding:15px; background:#400080; color:white; border-radius:10px; font-weight:bold; border:2px solid #ff00ff;">SBI証券 米国株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
 
 st.caption("Produced by Maria & BLACK")
