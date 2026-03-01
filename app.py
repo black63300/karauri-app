@@ -81,7 +81,7 @@ if market_type == "日本株 (JPN)":
                 st.line_chart(ticker.history(period="1mo")['Close'])
                 # 日本株アプリリンク
                 sbi_link_jp = f"sbisec-stock://stock/{search_jp}/detail"
-                st.markdown(f'<a href="{sbi_link_jp}"><button style="width:100%; padding:15px; background:#0041ff; color:white; border-radius:10px; font-weight:bold; border:2px solid #00ffff;">SBI証券 日本株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
+                st.markdown(f'<a href="{sbi_link_jp}" target="_self"><button style="width:100%; padding:15px; background:#0041ff; color:white; border-radius:10px; font-weight:bold; border:2px solid #00ffff; cursor:pointer;">SBI証券 日本株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
 else:
     search_us = st.text_input("ティッカー（例: TSLA）", "TSLA").upper()
     if search_us:
@@ -94,22 +94,8 @@ else:
             c2.markdown(f"### 💀 空売り比率\n<h2 style='color:{short_color};'>{data_us['short']:.2f}%</h2>", unsafe_allow_html=True)
             st.line_chart(yf.Ticker(search_us).history(period="1mo")['Close'])
             
-            # 🔥 米国株アプリへのリンク（超・修正版）
-            # これが一番アプリを強制起動させやすい書き方だよ！
+            # 🔥 米国株アプリへのリンク（王道形式に戻したよ！）
             sbi_link_us = f"sbisec-usstock://stock/detail?ticker={search_us}"
-            st.markdown(f'''
-                <button onclick="window.location.href='{sbi_link_us}'" style="
-                    width:100%; 
-                    padding:18px; 
-                    background:#400080; 
-                    color:white; 
-                    border-radius:12px; 
-                    font-weight:bold; 
-                    border:2px solid #ff00ff;
-                    box-shadow: 0 0 15px #ff00ff;
-                    cursor: pointer;">
-                    SBI米国株アプリを叩き起こす 📱⚡️
-                </button>
-                ''', unsafe_allow_html=True)
+            st.markdown(f'<a href="{sbi_link_us}" target="_self"><button style="width:100%; padding:18px; background:#400080; color:white; border-radius:12px; font-weight:bold; border:2px solid #ff00ff; box-shadow: 0 0 15px #ff00ff; cursor:pointer;">SBI米国株アプリで取引 📱✨</button></a>', unsafe_allow_html=True)
 
 st.caption("Produced by Maria & BLACK")
