@@ -4,10 +4,8 @@ import requests
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. サイト設定 ---
+# --- 1. デザイン設定 ---
 st.set_page_config(page_title="BLACK'S GLOBAL MONITOR", layout="wide")
-
-# --- 2. 漆黒デザイン ---
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
@@ -18,7 +16,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. サイドバー ---
+# --- 2. サイドバー設定 ---
 st.sidebar.title("🌍 GLOBAL SETTING")
 market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
 
@@ -26,24 +24,26 @@ refresh_mode = st.sidebar.selectbox("自動更新", ["OFF", "5分", "10分"], in
 if "分" in refresh_mode:
     st_autorefresh(interval=int(refresh_mode.replace("分", "")) * 60 * 1000, key="refresh")
 
-# --- 4. 秘密の鍵 ---
+# --- 3. 秘密の鍵 ---
 try:
     REFRESH_TOKEN = st.secrets["JQUANTS_REFRESH_TOKEN"]
 except:
     st.error("🔑 秘密の金庫に鍵がないよ！")
     st.stop()
 
-# --- 5. データ取得関数 ---
+# --- 4. データ取得エンジン ---
 def get_us_data(ticker_symbol):
     try:
         ticker = yf.Ticker(ticker_symbol)
         info = ticker.info
         short_ratio = info.get('shortPercentOfFloat', 0) * 100
         hist = ticker.history(period="2d")
-        last_price = hist['Close'].iloc[-1]
-        prev_close = hist['Close'].iloc[-2]
-        change = ((last_price - prev_close) / prev_close) * 100
-        return {"price": last_price, "change": f"{change:+.2f}%", "short": short_ratio, "name": info.get('longName', ticker_symbol)}
+        if not hist.empty:
+            last_price = hist['Close'].iloc[-1]
+            prev_close = hist['Close'].iloc[-2]
+            change = ((last_price - prev_close) / prev_close) * 100
+            return {"price": last_price, "change": f"{change:+.2f}%", "short": short_ratio, "name": info.get('longName', ticker_symbol)}
+        return None
     except: return None
 
 def get_jp_data():
@@ -61,7 +61,7 @@ def get_jp_data():
         return None
     except: return None
 
-# --- 6. メイン表示 ---
+# --- 5. メイン表示 ---
 st.title(f"🕶️ BLACK'S {market_type} MONITOR")
 
 if market_type == "日本株 (JPN)":
@@ -72,15 +72,16 @@ if market_type == "日本株 (JPN)":
         if not target.empty:
             ticker = yf.Ticker(f"{search_jp}.T")
             hist = ticker.history(period="2d")
-            price = hist['Close'].iloc[-1]
-            change = ((price - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
-            c1, c2 = st.columns(2)
-            c1.metric("現在の株価", f"¥{price:,.1f}", f"{change:+.2f}%")
-            c2.metric("空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
-            st.line_chart(ticker.history(period="1mo")['Close'])
-            # 日本株アプリリンク
-            sbi_link_jp = f"sbisec-stock://stock/{search_jp}/detail"
-            st.markdown(f'<a href="{sbi_link_jp}"><button style="width:100%; padding:15px; background:#0041ff; color:white; border-radius:10px; font-weight:bold; border:2px solid #00ffff;">SBI証券 日本株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
+            if not hist.empty:
+                price = hist['Close'].iloc[-1]
+                change = ((price - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
+                c1, c2 = st.columns(2)
+                c1.metric("現在の株価", f"¥{price:,.1f}", f"{change:+.2f}%")
+                c2.metric("空売り比率", f"{target.iloc[0]['空売り比率(%)']}%")
+                st.line_chart(ticker.history(period="1mo")['Close'])
+                # 日本株アプリへのリンク
+                sbi_link_jp = f"sbisec-stock://stock/{search_jp}/detail"
+                st.markdown(f'<a href="{sbi_link_jp}"><button style="width:100%; padding:15px; background:#0041ff; color:white; border-radius:10px; font-weight:bold; border:2px solid #00ffff;">SBI証券 日本株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
 else:
     search_us = st.text_input("ティッカー（例: TSLA）", "TSLA").upper()
     if search_us:
@@ -92,10 +93,9 @@ else:
             short_color = "#ff00ff" if data_us['short'] > 15 else "#ffffff"
             c2.markdown(f"### 💀 空売り比率\n<h2 style='color:{short_color};'>{data_us['short']:.2f}%</h2>", unsafe_allow_html=True)
             st.line_chart(yf.Ticker(search_us).history(period="1mo")['Close'])
-            # 🔥 米国株アプリリンク（修正版）
-            # 米国株アプリを直接起動するためのURL
+            
+            # 🔥 米国株アプリへのリンク（修正版：一番シンプルな形にしたよ！）
             sbi_link_us = f"sbisec-usstock://stock/detail?ticker={search_us}"
             st.markdown(f'<a href="{sbi_link_us}"><button style="width:100%; padding:15px; background:#400080; color:white; border-radius:10px; font-weight:bold; border:2px solid #ff00ff;">SBI証券 米国株アプリで取引 📱💥</button></a>', unsafe_allow_html=True)
 
 st.caption("Produced by Maria & BLACK")
-
