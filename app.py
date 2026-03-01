@@ -5,44 +5,41 @@ import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. サイトの基本設定 ---
-st.set_page_config(page_title="BLACK'S MONITORING ROOM", layout="wide")
+st.set_page_config(page_title="BLACK'S ULTIMATE MONITOR", layout="wide")
 
-# --- 2. 漆黒×ネオンデザイン ---
+# --- 2. 漆黒×ネオンデザイン（BLACK専用） ---
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
-    h1 { color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; font-family: 'Courier New', monospace; }
+    h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; font-family: 'Courier New', monospace; }
+    h3 { color: #00ffff !important; }
     .stDataFrame { border: 1px solid #ff00ff; }
     label { color: #00ffff !important; }
     [data-testid="stMetricValue"] { color: #ffffff !important; }
-    /* サイドバーも黒くするよ */
     section[data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #ff00ff; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. 【スライド切り替え式】自動更新タイマー ---
+# --- 3. スライド式・自動更新タイマー ---
 st.sidebar.title("⏲️ MONITORING MODE")
-# スライド選択（セレクトボックス）で間隔を切り替え！
 refresh_mode = st.sidebar.selectbox(
     "更新間隔を選びなよ、BLACK。",
     options=["OFF (手動)", "5分間隔", "10分間隔", "15分間隔"],
     index=0
 )
 
-# 選択に合わせてタイマーをセット
 if "分間隔" in refresh_mode:
     mins = int(refresh_mode.replace("分間隔", ""))
-    # ミリ秒に変換
     st_autorefresh(interval=mins * 60 * 1000, key="datarefresh")
     st.sidebar.success(f"🚀 {mins}分ごとに自動ハック中...")
 else:
-    st.sidebar.info("🕶️ マニュアルモード（手動更新）")
+    st.sidebar.info("🕶️ マニュアルモード")
 
-# --- 4. 秘密の鍵とデータ取得（いつもの魔法） ---
+# --- 4. 秘密の鍵とデータ取得関数 ---
 try:
     REFRESH_TOKEN = st.secrets["JQUANTS_REFRESH_TOKEN"]
 except:
-    st.error("🔑 秘密の金庫（Secrets）に鍵がないよ！")
+    st.error("🔑 秘密の金庫（Secrets）に鍵がないよ！設定してね。")
     st.stop()
 
 def get_live_price(code):
@@ -84,7 +81,7 @@ st.title("🕶️ BLACK'S ULTIMATE MONITOR")
 df = get_data()
 
 if df is not None and not df.empty:
-    search = st.text_input("銘柄コードを入力...", "7203")
+    search = st.text_input("銘柄コードを入れなよ、BLACK。", "7203")
     if search:
         target_df = df[df['コード'].str.contains(search)].copy()
         if not target_df.empty:
@@ -96,8 +93,31 @@ if df is not None and not df.empty:
             st.markdown("### 📈 リアルタイムチャート")
             st.line_chart(yf.Ticker(f"{search}.T").history(period="1mo")['Close'])
             
-            st.markdown("### 📊 空売り詳細")
+            st.markdown("### 📊 空売り詳細データ")
             st.dataframe(target_df.style.apply(highlight_risky, axis=1))
+
+            # 🔥 SBI証券アプリへの爆速ジャンプボタン！
+            st.markdown("---")
+            st.subheader("🚀 QUICK ACTION")
+            sbi_link = f"sbisec-stock://stock/{search}/detail"
+            st.markdown(f"""
+                <a href="{sbi_link}" target="_self">
+                    <button style="
+                        width: 100%;
+                        background-color: #0041ff;
+                        color: white;
+                        padding: 18px;
+                        border: 2px solid #00ffff;
+                        border-radius: 12px;
+                        font-size: 22px;
+                        font-weight: bold;
+                        box-shadow: 0 0 20px #00ffff;
+                        cursor: pointer;
+                        margin-bottom: 20px;">
+                        SBI証券アプリで {search} を即発注 📱💥
+                    </button>
+                </a>
+                """, unsafe_allow_html=True)
 else:
     st.info("今はデータがないみたい。月曜日の夕方にまたおいで！")
 
