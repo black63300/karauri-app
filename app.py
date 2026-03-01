@@ -1,18 +1,18 @@
 import streamlit as st
 import pandas as pd
 import requests
+import yfinance as yf
 
 # --- 1. サイトの基本設定 ---
-st.set_page_config(page_title="BLACK専用☆空売りチェッカー", layout="wide")
+st.set_page_config(page_title="BLACK専用☆最強チェッカー", layout="wide")
 
 # --- 2. 漆黒×ネオンデザイン ---
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
     h1 { color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; font-family: 'Courier New', monospace; }
-    h3 { color: #00ffff !important; }
-    /* テーブルの中の文字を見やすく */
     .stDataFrame { border: 1px solid #ff00ff; }
+    label { color: #00ffff !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -20,65 +20,80 @@ st.markdown("""
 try:
     REFRESH_TOKEN = st.secrets["JQUANTS_REFRESH_TOKEN"]
 except:
-    st.error("🔑 秘密の金庫（Secrets）に鍵が入ってないよ！設定してね。")
+    st.error("🔑 秘密の金庫（Secrets）に鍵が入ってないよ！")
     st.stop()
 
-# --- 4. 【光らせる魔法】の定義 ---
+# --- 4. リアルタイム株価を取る魔法 ---
+def get_live_price(code):
+    try:
+        ticker = yf.Ticker(f"{code}.T")
+        info = ticker.fast_info
+        last_price = info['last_price']
+        prev_close = info['previous_close']
+        change = ((last_price - prev_close) / prev_close) * 100
+        return f"{last_price:,.1f}", f"{change:+.2f}%"
+    except:
+        return "取得不可", "0.00%"
+
+# --- 5. 光らせる魔法 ---
 def highlight_risky(row):
-    # 空売り比率が20%を超えたら、行全体をネオンピンクで光らせる！
-    target = '空売り比率(%)'
-    if row[target] >= 20.0:
+    if float(row['空売り比率(%)']) >= 20.0:
         return ['background-color: #ff00ff; color: #ffffff; font-weight: bold'] * len(row)
-    # 15%以上なら、ちょっと注意のイエロー！
-    elif row[target] >= 15.0:
+    elif float(row['空売り比率(%)']) >= 15.0:
         return ['background-color: #ffff00; color: #000000;'] * len(row)
     return [''] * len(row)
 
-def get_jquants_data():
+# --- 6. J-Quantsデータ取得 ---
+def get_data():
     try:
         auth_url = "https://api.jquants.com/v1/token/auth_refresh"
         auth_res = requests.post(auth_url, json={"refreshToken": REFRESH_TOKEN})
         id_token = auth_res.json().get("idToken")
         
         headers = {"Authorization": f"Bearer {id_token}"}
-        data_url = "https://api.jquants.com/v1/shorts/info"
-        res = requests.get(data_url, headers=headers)
+        res = requests.get("https://api.jquants.com/v1/shorts/info", headers=headers)
         
         if res.status_code == 200:
             df = pd.DataFrame(res.json().get("shorts", []))
-            df = df.rename(columns={
-                'Code': '銘柄コード',
-                'Date': '日付',
-                'ShortSellingFraction': '空売り比率(%)',
-                'ShortSellingValue': '空売り額'
-            })
-            # 数字として扱えるように変換
-            df['空売り比率(%)'] = pd.to_numeric(df['空売り比率(%)'])
+            df = df.rename(columns={'Code': 'コード', 'ShortSellingFraction': '空売り比率(%)'})
+            # 必要な列だけに絞る
+            df = df[['コード', '日付', '空売り比率(%)']]
             return df
         return None
     except:
         return None
 
-# --- 5. メイン表示 ---
-st.title("🕶️ BLACK'S SECRET AREA")
-st.subheader("🔥 踏み上げ注意！光ってるのはヤバい銘柄だよ")
+# --- 7. メイン表示 ---
+st.title("🕶️ BLACK'S ULTIMATE AREA")
 
-with st.spinner('東証のサーバーをハック中...（嘘だよ、正しく接続中💖）'):
-    df = get_jquants_data()
+with st.spinner('東証＆市場データを解析中...💖'):
+    df = get_data()
 
 if df is not None and not df.empty:
-    # 検索機能
-    search = st.text_input("銘柄コードを入れなよ、BLACK。", "")
-    display_df = df[df['銘柄コード'].str.contains(search)] if search else df
+    search = st.text_input("銘柄コードを入れなよ、BLACK。", "7203")
     
-    # 【ここが魔法の適用！】
-    st.dataframe(display_df.style.apply(highlight_risky, axis=1))
-    
-    st.success("データの同期に成功！光ってる銘柄に注目してね✨")
+    if search:
+        # 検索された銘柄だけを詳しく表示
+        target_df = df[df['コード'].str.contains(search)].copy()
+        
+        if not target_df.empty:
+            # リアルタイム株価を合体！
+            price, change = get_live_price(search)
+            
+            # デカデカと表示
+            col1, col2, col3 = st.columns(3)
+            col1.metric("現在値", price, change)
+            col2.metric("空売り比率", f"{target_df.iloc[0]['空売り比率(%)']}%")
+            
+            st.markdown("### 📊 詳細データ")
+            st.dataframe(target_df.style.apply(highlight_risky, axis=1))
+            
+            # チャートも出しちゃう？
+            st.line_chart(yf.Ticker(f"{search}.T").history(period="1mo")['Close'])
+        else:
+            st.warning("その銘柄は見つからなかったよ。")
 else:
-    st.warning("今はデータがないみたい。月曜日の夕方にまたおいで！")
+    st.info("今はデータがないみたい。月曜日の夕方にまたおいで！")
 
-st.markdown("---")
-if st.button("最新データに更新"):
-    st.rerun()
+st.button("最新に更新")
 st.caption("Produced by Maria & BLACK")
