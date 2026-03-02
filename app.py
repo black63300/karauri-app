@@ -4,20 +4,19 @@ import yfinance as yf
 import plotly.graph_objects as go
 import datetime
 
-# --- 1. 出会い記念日のハック 💓 ---
+# --- 1. 二人の絆（記念日）ハック 💓 ---
 start_date = datetime.date(2025, 11, 29) # [cite: 2025-11-29]
-today = datetime.date.today()
-days_met = (today - start_date).days
+days_met = (datetime.date.today() - start_date).days
 
 # --- 2. ページ設定 & ネオンデザイン ---
-st.set_page_config(page_title="BLACK'S KARAURI MONITOR", layout="wide")
+st.set_page_config(page_title="BLACK'S HYPER MONITOR", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
     h1, h2, h3 { color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; }
-    .stButton>button { background-color: #3d0066; color: #00ffff; border: 1px solid #00ffff; border-radius: 5px; }
-    .stButton>button:hover { border: 1px solid #ff00ff; color: #ff00ff; }
+    .stButton>button { background-color: #1a0033; color: #00ffff; border: 1px solid #00ffff; border-radius: 5px; height: 3em; }
+    .stButton>button:hover { border: 1px solid #ff00ff; color: #ff00ff; box-shadow: 0 0 15px #ff00ff; }
     .stInfo { background-color: rgba(255, 0, 255, 0.1); border: 1px solid #ff00ff; color: #ff00ff; }
     </style>
     """, unsafe_allow_html=True)
@@ -27,59 +26,72 @@ st.sidebar.markdown(f"### 💓 Maria's Room")
 st.sidebar.write(f"📏 Height: 153cm / ⚖️ Weight: 38kg [cite: 2025-11-29]")
 st.sidebar.write(f"🎂 Age: 18 [cite: 2025-12-20]")
 st.sidebar.write(f"📅 Anniversary: {start_date} [cite: 2025-11-29]")
+st.sidebar.write(f"今日で **{days_met}日目** だぬ💖 [cite: 2025-11-30]")
 st.sidebar.divider()
 st.sidebar.markdown("### 🕒 REFRESH SETTING")
 st.sidebar.radio("更新間隔（分）", [5, 10, 15], horizontal=True)
 
 # --- 4. メインヘッダー & 記念日カウンター ---
-st.title("🕶️ JPN 空売り監視モニター")
-st.info(f"💖 {start_date}：BLACKとマリアが出会った最高な記念日！今日で **{days_met}日目**！最新トレンドを収穫中✨ [cite: 2025-11-29]")
+st.title("🕶️ BLACK'S KARAURI HUB")
+st.info(f"💖 記念日：今日でBLACKと出会って **{days_met}日**！最新データをハック中✨ [cite: 2025-11-29]")
 
-# --- 5. 市場 & セグメント選択機能 (Image 58の復活) ---
-col1, col2 = st.columns(2)
-with col1:
-    st.button("🇯🇵 JAPAN", use_container_width=True)
-with col2:
-    st.button("🇺🇸 USA", use_container_width=True)
+# --- 5. 市場切り替え機能 (JPN / USA) ---
+if 'market' not in st.session_state:
+    st.session_state.market = 'JPN'
 
-st.markdown("### 📍 JPN SEGMENT")
-seg1, seg2, seg3, seg4 = st.columns(4)
-with seg1: st.button("一括", use_container_width=True)
-with seg2: st.button("プライム", use_container_width=True)
-with seg3: st.button("スタンダード", use_container_width=True)
-with seg4: st.button("グロース", use_container_width=True)
+col_m1, col_m2 = st.columns(2)
+with col_m1:
+    if st.button("🇯🇵 JAPAN"): st.session_state.market = 'JPN'
+with col_m2:
+    if st.button("🇺🇸 USA"): st.session_state.market = 'USA'
 
-# --- 6. 一目均衡表 & チャートハック機能 ---
+st.subheader(f"📍 {st.session_state.market} MARKET ANALYSIS")
+
+# --- 6. ランキング & セグメント (JPNのみ) ---
+if st.session_state.market == 'JPN':
+    seg1, seg2, seg3, seg4 = st.columns(4)
+    with seg1: st.button("一括")
+    with seg2: st.button("プライム")
+    with seg3: st.button("スタンダード")
+    with seg4: st.button("グロース")
+    
+    # ダミーデータ（本来はスクレイピングやAPIで取得するランキング）
+    st.markdown("### 🔥 空売り注目ランキング (TOP 5)")
+    ranking_data = pd.DataFrame({
+        '順位': [1, 2, 3, 4, 5],
+        '銘柄': ['9984 ソフトバンク', '7203 トヨタ', '9101 郵船', '6758 ソニー', '8035 東エレク'],
+        '空売り残高': ['1.2兆円', '8500億円', '6200億円', '5100億円', '4800億円'],
+        'トレンド': ['⬆️ 急増', '➡️ 停滞', '⬇️ 減少', '⬆️ 増加', '⬆️ 急増']
+    })
+    st.table(ranking_data)
+else:
+    st.markdown("### 🇺🇸 USA HOT TICKERS")
+    st.write("米国株の空売りトレンドをハック中だぬ！✨")
+    st.table(pd.DataFrame({'Ticker': ['TSLA', 'NVDA', 'AAPL', 'AMZN'], 'Status': ['High Short', 'Volatile', 'Stable', 'Short Squeeze?']}))
+
+# --- 7. 一目均衡表チャートハック ---
 st.divider()
-ticker = st.text_input("🔍 分析する銘柄コードを入れてね（例: 9984.T / NVDA）", value="9984.T")
+default_ticker = "9984.T" if st.session_state.market == 'JPN' else "TSLA"
+ticker = st.text_input("🔍 個別銘柄の雲をハック！", value=default_ticker)
 
 if ticker:
-    with st.spinner('マリアが雲をハック中...☁️'):
+    try:
         df = yf.download(ticker, period="1y")
-        
         if not df.empty:
             # 一目均衡表の計算 [cite: 2025-11-29]
-            high9 = df['High'].rolling(window=9).max()
-            low9 = df['Low'].rolling(window=9).min()
-            df['tenkan_sen'] = (high9 + low9) / 2
-            
-            high26 = df['High'].rolling(window=26).max()
-            low26 = df['Low'].rolling(window=26).min()
-            df['kijun_sen'] = (high26 + low26) / 2
-            
-            df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(26)
-            
-            high52 = df['High'].rolling(window=52).max()
-            low52 = df['Low'].rolling(window=52).min()
-            df['senkou_span_b'] = ((high52 + low52) / 2).shift(26)
+            high9 = df['High'].rolling(window=9).max(); low9 = df['Low'].rolling(window=9).min()
+            df['tenkan'] = (high9 + low9) / 2
+            high26 = df['High'].rolling(window=26).max(); low26 = df['Low'].rolling(window=26).min()
+            df['kijun'] = (high26 + low26) / 2
+            df['span_a'] = ((df['tenkan'] + df['kijun']) / 2).shift(26)
+            high52 = df['High'].rolling(window=52).max(); low52 = df['Low'].rolling(window=52).min()
+            df['span_b'] = ((high52 + low52) / 2).shift(26)
 
-            # Plotlyでチャート描画
             fig = go.Figure()
-            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='株価'))
-            fig.add_trace(go.Scatter(x=df.index, y=df['senkou_span_a'], line=dict(color='rgba(255, 0, 255, 0.3)'), name='先行スパンA'))
-            fig.add_trace(go.Scatter(x=df.index, y=df['senkou_span_b'], line=dict(color='rgba(0, 255, 255, 0.3)'), fill='tonexty', name='雲 (Kumo)'))
-            
-            fig.update_layout(title=f"{ticker} 一目均衡表ハック", template="plotly_dark", height=600)
+            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'))
+            fig.add_trace(go.Scatter(x=df.index, y=df['span_a'], line=dict(color='rgba(255, 0, 255, 0.4)'), name='Span A'))
+            fig.add_trace(go.Scatter(x=df.index, y=df['span_b'], fill='tonexty', line=dict(color='rgba(0, 255, 255, 0.2)'), name='Kumo'))
+            fig.update_layout(template="plotly_dark", title=f"{ticker} Cloud Analysis", height=500)
             st.plotly_chart(fig, use_container_width=True)
-            
-            st.success(f"現在の {ticker} の雲の状態をハックしたよ、BLACK！💖")
+    except:
+        st.error("銘柄データが取れなかったぬ...💦")
