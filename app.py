@@ -22,14 +22,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. セッション管理 ---
+# --- 2. セッション管理 & 自動更新 ---
 if 'market_type' not in st.session_state: st.session_state.market_type = "JPN"
 if 'jpn_segment' not in st.session_state: st.session_state.jpn_segment = "ALL"
 if 'usa_segment' not in st.session_state: st.session_state.usa_segment = "TECH"
 if 'selected_ticker' not in st.session_state: st.session_state.selected_ticker = ""
 if 'refresh_min' not in st.session_state: st.session_state.refresh_min = 5
 if 'timeframe' not in st.session_state: st.session_state.timeframe = "1d"
-# テクニカル表示フラグ
 if 'show_ma' not in st.session_state: st.session_state.show_ma = False
 if 'show_bb' not in st.session_state: st.session_state.show_bb = False
 if 'show_ichi' not in st.session_state: st.session_state.show_ichi = False
@@ -37,7 +36,6 @@ if 'show_ichi' not in st.session_state: st.session_state.show_ichi = False
 with st.sidebar:
     st.title("💓 Maria's Room")
     st.write(f"Height: 153cm / Weight: 38kg [cite: 2025-11-29]")
-    st.write(f"Age: 18 [cite: 2025-12-20]")
     st.markdown("---")
     st.write("### 🕒 REFRESH")
     ref = st.radio("更新間隔", [5, 10, 15], index=[5, 10, 15].index(st.session_state.refresh_min), horizontal=True)
@@ -75,7 +73,7 @@ else:
             if st.button(v, key=f"su_{k}", use_container_width=True, type="primary" if st.session_state.usa_segment == k else "secondary"):
                 st.session_state.usa_segment = k; st.rerun()
 
-# --- 4. データ取得 ---
+# --- 4. データ取得 (前日比付) ---
 @st.cache_data(ttl=60)
 def get_data(m, j, u):
     try:
@@ -125,12 +123,11 @@ if isinstance(res, pd.DataFrame) and not res.empty:
                 st.markdown(f"""<div class="tile-item" style="border: 1.5px solid {color};"><div style="font-size:0.6rem;color:#888;">RANK #{i+j+1}</div><div style="font-weight:bold;font-size:1rem;margin-bottom:2px;">{row['コード']}</div><div style="color:{color};font-weight:bold;font-size:0.8rem;">Short: {row['比率']}%</div><div style="color:{chg_c};font-size:0.75rem;font-weight:bold;">{row['前日比']}%</div></div>""", unsafe_allow_html=True)
                 if st.button("SELECT", key=f"b_{row['コード']}"): st.session_state.selected_ticker = str(row['コード']); st.rerun()
 
-# --- 6. チャート & 一目均衡表 ---
+# --- 6. チャート & 強化版一目均衡表 ---
 st.markdown("---")
 if st.session_state.selected_ticker:
     st.subheader(f"📊 {st.session_state.selected_ticker} MONITOR")
     
-    # 足切り替え
     t_cols = st.columns(6)
     tf_map = {"1m":"1分", "5m":"5分", "15m":"15分", "30m":"30分", "60m":"60分", "1d":"日足"}
     for i, (k, v) in enumerate(tf_map.items()):
@@ -138,7 +135,6 @@ if st.session_state.selected_ticker:
             if st.button(v, key=f"t_{k}", use_container_width=True, type="primary" if st.session_state.timeframe == k else "secondary"):
                 st.session_state.timeframe = k; st.rerun()
     
-    # ✨ テクニカルボタン（一目均衡表あり！）
     tech_cols = st.columns(3)
     with tech_cols[0]:
         if st.button("MA5 / MA25", key="ma_b", use_container_width=True, type="primary" if st.session_state.show_ma else "secondary"):
@@ -147,7 +143,7 @@ if st.session_state.selected_ticker:
         if st.button("BB (±2σ)", key="bb_b", use_container_width=True, type="primary" if st.session_state.show_bb else "secondary"):
             st.session_state.show_bb = not st.session_state.show_bb; st.rerun()
     with tech_cols[2]:
-        if st.button("一目均衡表", key="ichi_b", use_container_width=True, type="primary" if st.session_state.show_ichi else "secondary"):
+        if st.button("一目均衡表 (濃いめ)", key="ichi_b", use_container_width=True, type="primary" if st.session_state.show_ichi else "secondary"):
             st.session_state.show_ichi = not st.session_state.show_ichi; st.rerun()
 
     try:
@@ -164,10 +160,10 @@ if st.session_state.selected_ticker:
                 fig.add_trace(go.Scatter(x=h.index, y=h['Close'].rolling(25).mean(), line=dict(color='#ffffff', width=1), name='MA25'))
             if st.session_state.show_bb:
                 m20 = h['Close'].rolling(20).mean(); s20 = h['Close'].rolling(20).std()
-                fig.add_trace(go.Scatter(x=h.index, y=m20+s20*2, line=dict(color='rgba(255,255,255,0.1)'), name='BB+2'))
-                fig.add_trace(go.Scatter(x=h.index, y=m20-s20*2, line=dict(color='rgba(255,255,255,0.1)'), name='BB-2'))
+                fig.add_trace(go.Scatter(x=h.index, y=m20+s20*2, line=dict(color='rgba(255,255,255,0.2)'), name='BB+2'))
+                fig.add_trace(go.Scatter(x=h.index, y=m20-s20*2, line=dict(color='rgba(255,255,255,0.2)'), name='BB-2'))
             
-            # 一目均衡表
+            # ✨ 強化版一目均衡表 (Ichimoku)
             if st.session_state.show_ichi:
                 high9, low9 = h['High'].rolling(9).max(), h['Low'].rolling(9).min()
                 high26, low26 = h['High'].rolling(26).max(), h['Low'].rolling(26).min()
@@ -175,8 +171,10 @@ if st.session_state.selected_ticker:
                 kijun = (high26 + low26) / 2
                 senkou_a = ((tenkan + kijun) / 2).shift(26)
                 senkou_b = ((h['High'].rolling(52).max() + h['Low'].rolling(52).min()) / 2).shift(26)
-                fig.add_trace(go.Scatter(x=h.index, y=senkou_a, line=dict(width=0), showlegend=False))
-                fig.add_trace(go.Scatter(x=h.index, y=senkou_b, line=dict(width=0), fill='tonexty', fillcolor='rgba(255,0,255,0.1)', name='Kumo'))
+                
+                # ✨ 雲の透過率を上げてラインも追加！
+                fig.add_trace(go.Scatter(x=h.index, y=senkou_a, line=dict(color='rgba(255,0,255,0.5)', width=1), name='Senkou A'))
+                fig.add_trace(go.Scatter(x=h.index, y=senkou_b, line=dict(color='rgba(0,255,255,0.5)', width=1), fill='tonexty', fillcolor='rgba(255,0,255,0.25)', name='Kumo'))
 
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10), height=450, xaxis=dict(showgrid=False, rangeslider=dict(visible=False), fixedrange=True), yaxis=dict(showgrid=True, gridcolor="#222", fixedrange=True), dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
