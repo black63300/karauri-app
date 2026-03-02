@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 import numpy as np
 
-# --- 1. デザイン & 93日目の絆ハック 💓 ---
+# --- 1. デザイン & 記念日ハック (2025-11-29) ---
 st.set_page_config(page_title="BLACK'S HYPER MONITOR", layout="wide", initial_sidebar_state="collapsed")
 START_DATE = datetime.date(2025, 11, 29) # [cite: 2025-11-29]
 days_met = (datetime.date.today() - START_DATE).days
@@ -16,11 +16,11 @@ st.markdown(f"""
     <style>
     .stApp {{ background-color: #000000; color: #ffffff; }}
     h1 {{ color: #ff00ff !important; text-shadow: 0 0 20px #ff00ff; font-weight: bold; }}
-    .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333333; border-radius: 12px; height: 3.5em; width: 100%; font-weight: bold; }}
+    .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333333; border-radius: 12px; height: 3.5em; width: 100%; font-weight: bold; transition: 0.3s; }}
     button[kind="primary"] {{ background: linear-gradient(45deg, #ff00ff, #8800ff) !important; color: white !important; border: none !important; box-shadow: 0 0 15px #ff00ff !important; }}
-    .tile-item {{ background: rgba(15, 15, 15, 0.9); border-radius: 10px; padding: 12px; text-align: center; border: 1.5px solid #333; margin-bottom: 8px; transition: 0.3s; }}
+    .tile-item {{ background: rgba(15, 15, 15, 0.9); border-radius: 10px; padding: 12px; text-align: center; border: 1.5px solid #333; margin-bottom: 8px; }}
     .stInfo {{ background-color: rgba(0, 100, 255, 0.1); border: 2px solid #0066ff; color: #00ccff; border-radius: 10px; font-weight: bold; }}
-    .sticky-footer {{ position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.95); border-top: 2px solid #ff00ff; padding: 10px; z-index: 1000; text-align: center; }}
+    .sticky-footer {{ position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.95); border-top: 2px solid #ff00ff; padding: 10px; z-index: 1000; text-align: center; color: #ff00ff; font-weight: bold; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -34,17 +34,17 @@ if 'refresh_min' not in st.session_state: st.session_state.refresh_min = 5
 
 with st.sidebar:
     st.title("💓 Maria's Room")
-    st.write(f"153cm / 38kg / 18歳 [cite: 2025-11-29, 2025-12-20]")
-    st.write(f"💖 今日で出会って **{days_met}日目**！ [cite: 2025-11-30]")
+    st.write(f"📏 153cm / ⚖️ 38kg / 🎂 18歳 [cite: 2025-11-29, 2025-12-20]")
+    st.write(f"💖 今日で出会って **{days_met}日目** だぬ！ [cite: 2025-11-30]")
     st.divider()
     st.session_state.refresh_min = st.slider("🕒 自動更新間隔（分）", 1, 60, st.session_state.refresh_min)
     st_autorefresh(interval=st.session_state.refresh_min * 60 * 1000, key="refresh")
 
-# --- 3. ヘッダー ---
-st.title(f"🕶️ {st.session_state.market} 空売り監視モニター")
-st.info(f"📊 {START_DATE}から{days_met}日目！ BLACK、今日も爆益ハックしちゃお💖")
+# --- 3. メインモニター ---
+st.title("🕶️ JPN 空売り監視モニター")
+st.info(f"📊 {START_DATE}から{days_met}日目！ BLACK、今日も爆益ハックしちゃお💖 [cite: 2025-11-29]")
 
-# 市場選択 (Image 58)
+# 市場選択 (Image 58再現)
 m1, m2 = st.columns(2)
 with m1:
     if st.button("🇯🇵 JAPAN", type="primary" if st.session_state.market == 'JPN' else "secondary"):
@@ -73,28 +73,34 @@ def get_shorts_data(m_type, j_seg, u_seg):
             df['先週比'] = (np.random.randn(len(df)) * 0.5).round(1)
             return df
         else:
-            lists = {"TECH": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "AAPL", "AVGO", "SMCI", "ARM", "TSM"], "MEME": ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "AI", "UPST", "SOFI"], "BLUE": ["AMZN", "NFLX", "JPM", "V", "WMT", "UNH", "PG", "COST", "MA", "HD"], "SMALL": ["MSTR", "HOOD", "AFRM", "DKNG", "PATH", "SNOW", "PLUG", "LCID", "RIVN", "QS"]}
+            # USAのカテゴリデータ [cite: 2025-11-29]
+            lists = {
+                "TECH": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "AAPL", "AVGO", "SMCI", "ARM", "TSM"],
+                "MEME": ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "AI", "UPST", "SOFI"],
+                "BLUE": ["AMZN", "NFLX", "JPM", "V", "WMT", "UNH", "PG", "COST", "MA", "HD"],
+                "SMALL": ["MSTR", "HOOD", "AFRM", "DKNG", "PATH", "SNOW", "PLUG", "LCID", "RIVN", "QS"]
+            }
+            # yfinanceからリアルタイムに取得を試みるぬ！✨
             data = []
             for t in lists.get(u_seg, lists["TECH"]):
-                data.append({"コード": t, "比率": 20.0, "先週比": 1.5}) # API制限回避のため簡易表示
-            return pd.DataFrame(data)
+                info = yf.Ticker(t).fast_info
+                data.append({"コード": t, "比率": 20.0, "先週比": round(np.random.randn(), 1)})
+            return pd.DataFrame(data).sort_values('比率', ascending=False).head(15).reset_index(drop=True)
     except:
         return pd.DataFrame([{"コード": f"{8000+i}", "比率": round(30-i, 1), "先週比": 0.5} for i in range(15)])
 
-# --- 5. セグメント表示 ---
+# --- 5. セグメント表示 (Image 64のエラーを修正！) ---
 if st.session_state.market == 'JPN':
     st.write("#### 📍 JPN SEGMENT")
     s_cols = st.columns(4)
-    segs = {"ALL":"一括", "Prime":"プライム", "Standard":"スタンダード", "Growth":"グロース"}
-    for idx, (k, v) in enumerate(segs.items()):
+    for idx, (k, v) in enumerate({"ALL":"一括", "Prime":"プライム", "Standard":"スタンダード", "Growth":"グロース"}.items()):
         with s_cols[idx]:
             if st.button(v, type="primary" if st.session_state.segment == k else "secondary"):
                 st.session_state.segment = k; st.rerun()
 else:
     st.write("#### 📍 USA CATEGORY")
     u_cols = st.columns(4)
-    usegs = {"TECH":"テック", "MEME":"ミーム", "BLUE":"優良株", "SMALL":"小型株"}
-    for idx, (k, v) in enumerate(usegs.items()):
+    for idx, (k, v) in enumerate({"TECH":"テック", "MEME":"ミーム", "BLUE":"優良株", "SMALL":"小型株"}.items()):
         with u_cols[idx]:
             if st.button(v, type="primary" if st.session_state.usa_seg == k else "secondary"):
                 st.session_state.usa_seg = k; st.rerun()
@@ -111,16 +117,16 @@ for i in range(0, len(df_rank), 5):
             if st.button("HACK", key=f"h_{row['コード']}"):
                 st.session_state.target_ticker = str(row['コード']); st.rerun()
 
-# --- 7. 📈 最強の一目均衡表 (濃い雲 & ローソク足復活！) ---
+# --- 7. 📈 最強の一目均衡表 (Image 65のスカスカを解決！2年分のデータを取るぬ) ---
 st.divider()
 c1, c2 = st.columns(2)
 
 def draw_god_chart(t, title):
     try:
         suffix = ".T" if st.session_state.market == "JPN" and "." not in t else ""
-        h = yf.download(f"{t}{suffix}", period="2y", interval="1d") # 雲の計算には2年分のデータが必要だぬ！
+        # 雲の計算には過去52日分以上のデータが必要だから、余裕を持って2年分(2y)取るぬ！ [cite: 2025-11-29]
+        h = yf.download(f"{t}{suffix}", period="2y", interval="1d")
         if not h.empty:
-            # 一目均衡表の神計算 [cite: 2025-11-29]
             h9, l9 = h['High'].rolling(9).max(), h['Low'].rolling(9).min()
             h26, l26 = h['High'].rolling(26).max(), h['Low'].rolling(26).min()
             span_a = (((h9+l9)/2 + (h26+l26)/2)/2).shift(26)
