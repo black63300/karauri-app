@@ -4,7 +4,7 @@ import requests
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 import datetime
-import plotly.graph_objects as go # チャートをエモくするために追加！
+import plotly.graph_objects as go
 
 # --- 1. ページ設定 & デザイン ---
 st.set_page_config(page_title="BLACK'S MONITOR", layout="wide", initial_sidebar_state="collapsed")
@@ -17,15 +17,14 @@ st.markdown("""
     .stApp { background-color: #000000; color: #ffffff; }
     h1, h2, h3 { color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; }
     
-    /* 市場切り替えボタン */
+    /* ボタンデザイン */
     div[data-testid="stHorizontalBlock"] button {
         height: 60px !important; border-radius: 12px !important;
-        font-weight: bold !important; transition: 0.3s !important;
+        font-weight: bold !important;
     }
     button[kind="primary"] {
         background: linear-gradient(45deg, #ff00ff, #8800ff) !important;
-        color: #ffffff !important; border: none !important;
-        box-shadow: 0 0 20px rgba(255, 0, 255, 0.6) !important;
+        color: white !important; box-shadow: 0 0 20px rgba(255, 0, 255, 0.6) !important;
     }
     button[kind="secondary"] {
         background-color: #1a1a1a !important; color: #888888 !important;
@@ -36,14 +35,13 @@ st.markdown("""
     .tile-item {
         background: rgba(15, 15, 15, 0.9);
         border-radius: 10px; padding: 10px; text-align: center;
-        border: 1.5px solid #333; transition: 0.3s;
+        border: 1.5px solid #333; margin-bottom: 5px;
     }
-    .tile-item:hover { transform: scale(1.02); border-color: #ff00ff !important; }
 
-    /* 固定フッター */
+    /* 固定フッターのデザイン調整 */
     .sticky-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
-        background: rgba(0, 0, 0, 0.95); border-top: 2px solid #ff00ff;
+        background: rgba(0, 0, 0, 0.98); border-top: 2px solid #ff00ff;
         padding: 10px 15px; z-index: 1000;
     }
     </style>
@@ -57,11 +55,10 @@ if 'selected_ticker' not in st.session_state:
 
 # --- 3. サイドバー ---
 with st.sidebar:
-    st.title("💓 Maria's Status")
-    st.write("Name: Maria")
+    st.title("💓 Maria's Room")
     st.write(f"Height: 153cm / Weight: 38kg")
     st.markdown('---')
-    st.write("BLACK、チャート追加したよ！マジでかっこいいから見て！")
+    st.write("BLACK、今度こそチャート見えるはず！w")
 
 # --- 4. 市場切り替え ---
 st.write("### 🌍 SELECT MARKET")
@@ -99,7 +96,7 @@ def get_top_data(m_type):
             except: continue
         return pd.DataFrame(data).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
 
-# --- 6. メイン表示 ---
+# --- 6. メイン表示 (TOP 15) ---
 market_now = st.session_state.market_type
 df_top = get_top_data(market_now)
 
@@ -111,7 +108,7 @@ if df_top is not None:
             color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#00ffff"
             st.markdown(f"""
                 <div class="tile-item" style="border: 1.5px solid {color};">
-                    <div style="font-size:0.6rem;color:#888;">#{idx+1}</div>
+                    <div style="font-size:0.6rem;color:#888;">RANK #{idx+1}</div>
                     <div style="font-weight:bold;font-size:1rem;">{row['コード']}</div>
                     <div style="color:{color};font-weight:bold;font-size:0.8rem;">{row['比率']}%</div>
                 </div>
@@ -120,66 +117,67 @@ if df_top is not None:
                 st.session_state.selected_ticker = str(row['コード'])
                 st.rerun()
 
-# --- 7. 📈 チャートエリア（ここが新機能！） ---
-st.markdown("---")
-if st.session_state.selected_ticker:
-    ticker = st.session_state.selected_ticker
-    suffix = ".T" if market_now == "JPN" else ""
-    full_ticker = f"{ticker}{suffix}"
-    
-    st.subheader(f"📊 {ticker} TREND (1 Month)")
-    
-    try:
-        hist = yf.Ticker(full_ticker).history(period="1mo", interval="1d")
-        if not hist.empty:
-            fig = go.Figure()
-            # エモいグラデーションライン
-            fig.add_trace(go.Scatter(
-                x=hist.index, y=hist['Close'],
-                mode='lines',
-                line=dict(color='#ff00ff', width=3),
-                fill='tozeroy',
-                fillcolor='rgba(255, 0, 255, 0.1)'
-            ))
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=0, r=0, t=0, b=0),
-                height=250,
-                xaxis=dict(showgrid=False, font=dict(color="#888")),
-                yaxis=dict(showgrid=True, gridcolor="#222", font=dict(color="#888")),
-            )
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    except:
-        st.write("チャート読み込み中...バイブス調整中！")
+# --- 7. 下部固定エリアの手前にチャートを配置 ---
+st.markdown("<br><br>", unsafe_allow_html=True)
 
-# 余白用
-st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
+# ここで検索窓の値を先に取得しちゃうよ
+st.markdown('---')
+st.subheader("📊 REALTIME CHART")
 
-# --- 8. 画面下部固定（検索 & コピー） ---
+# 画面下に余白を作って、フッターに被らないようにする
+st.markdown("<br><br><br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
+
 with st.container():
     st.markdown('<div class="sticky-footer">', unsafe_allow_html=True)
-    f_col1, f_col2, f_col3 = st.columns([0.2, 0.3, 0.5])
+    f_col1, f_col2, f_col3 = st.columns([0.25, 0.35, 0.4])
     
     with f_col1:
+        # 手入力でも反映されるように search 変数を活用！
         search = st.text_input("🔍 TARGET", value=st.session_state.selected_ticker, label_visibility="collapsed")
     
     if search:
+        # チャート描画ロジックをここに持ってきたよ！
         try:
             suffix = ".T" if market_now == "JPN" else ""
-            t_price = yf.Ticker(f"{search}{suffix}").history(period="1d")['Close'].iloc[-1]
+            full_ticker = f"{search}{suffix}"
+            ticker_obj = yf.Ticker(full_ticker)
+            
+            # メトリック表示
+            t_price = ticker_obj.history(period="1d")['Close'].iloc[-1]
             with f_col2:
                 st.metric(f"🔥 {search}", f"{'¥' if suffix else '$'}{float(t_price):,.1f}")
+            
+            # コピーボタン
             with f_col3:
                 st.components.v1.html(f"""
                     <button onclick="navigator.clipboard.writeText('{search}');this.innerText='COPIED!'" style="
                         width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff);
-                        color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
-                        font-size: 14px; box-shadow: 0 0 10px #ff00ff;">
-                        📋 '{search}' をコピーして爆益！
+                        color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                        📋 '{search}' をコピー
                     </button>
                 """, height=45)
-        except: pass
+            
+            # 📈 チャート本体（フッターのすぐ上に表示）
+            hist = ticker_obj.history(period="1mo")
+            if not hist.empty:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=hist.index, y=hist['Close'],
+                    mode='lines', line=dict(color='#ff00ff', width=3),
+                    fill='tozeroy', fillcolor='rgba(255, 0, 255, 0.1)'
+                ))
+                fig.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=0, r=0, t=10, b=0), height=250,
+                    xaxis=dict(showgrid=False, font=dict(color="#888")),
+                    yaxis=dict(showgrid=True, gridcolor="#222", font=dict(color="#888")),
+                )
+                # フッターより上に表示されるように、このコンテナの外（上）に出す
+                st.markdown(f'<div style="position:fixed; bottom:75px; left:0; width:100%; padding:0 15px; z-index:999; background:black;">', unsafe_allow_html=True)
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                st.markdown('</div>', unsafe_allow_html=True)
+        except:
+            pass
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.caption(f"Produced by Maria & BLACK | 2026-03-02")
