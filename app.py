@@ -16,7 +16,7 @@ st.markdown(f"""
     <style>
     .stApp {{ background-color: #000000; color: #ffffff; overflow: hidden; }}
     h1 {{ color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; font-size: 1.1rem !important; margin: 0 !important; padding: 0.1rem 0; }}
-    .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333; border-radius: 4px; height: 1.8em; font-size: 0.75rem; transition: 0.3s; }}
+    .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333; border-radius: 4px; height: 1.7em; font-size: 0.75rem; }}
     button[kind="primary"] {{ background: linear-gradient(45deg, #ff00ff, #8800ff) !important; color: white !important; border: none !important; }}
     .tile-item {{ background: rgba(20, 20, 20, 0.9); border-radius: 4px; padding: 2px; text-align: center; border: 1px solid #444; margin-bottom: 1px; line-height: 1.1; }}
     .block-container {{ padding-top: 0.1rem !important; padding-bottom: 0 !important; }}
@@ -36,7 +36,7 @@ JP_MASTER = {
 for k, v in {'market': 'JPN', 'segment': 'ALL', 'usa_seg': 'TECH', 'target_ticker': '9984.T', 'refresh_min': 5}.items():
     if k not in st.session_state: st.session_state[k] = v
 
-# --- 3. ヘッダー & 更新選択 ---
+# --- 3. ヘッダー & 更新選択 (復活させた機能だぬ ✨) ---
 h_col1, h_col2 = st.columns([0.7, 0.3])
 with h_col1:
     st.markdown(f"<h1>🕶️ {st.session_state.market} 爆益監視モニター</h1>", unsafe_allow_html=True)
@@ -101,7 +101,7 @@ else:
             if st.button(v, key=f"u_{k}", type="primary" if st.session_state.usa_seg == k else "secondary", use_container_width=True):
                 st.session_state.usa_seg = k; st.rerun()
 
-# --- 5. タイル形式ランキング ---
+# --- 5. タイルランキング ---
 df_rank = get_master_data(st.session_state.market, st.session_state.segment, st.session_state.usa_seg)
 tile_rows = st.columns(5)
 for i, (idx, row) in enumerate(df_rank.iterrows()):
@@ -133,14 +133,19 @@ def draw_candle_chart(t):
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# --- 7. 下部：検索窓 & 爆速コピーボタン (ハック完了！ ✨) ---
+# --- 7. 下部：検索窓 & 「数字だけ」爆速コピーボタン (ハック完了！ ✨) ---
 search = st.text_input("🔍 TARGET SEARCH", value=st.session_state.target_ticker, label_visibility="collapsed")
 if search != st.session_state.target_ticker:
     st.session_state.target_ticker = search; st.rerun()
 
-# 💡 コピーボタンを検索窓のすぐ下に配置 [cite: 2025-11-30]
-if st.button("📋 ランキングをコピー (TSV)", use_container_width=True):
-    st.code(df_rank.to_csv(sep='\t', index=False))
+# 💡 BLACKリクエスト：銘柄コード（数字）だけをコピーするボタン [cite: 2025-11-30]
+ticker_clean = st.session_state.target_ticker.split('.')[0] # 9984.T → 9984
+st.components.v1.html(f"""
+    <button onclick="navigator.clipboard.writeText('{ticker_clean}');this.innerText='COPIED!'" 
+    style="width: 100%; height: 32px; background: linear-gradient(45deg, #ff00ff, #8800ff); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px;">
+    📋 '{ticker_clean}' をコピー
+    </button>
+""", height=35)
 
 target_name = JP_MASTER.get(st.session_state.target_ticker, "")
 if not target_name:
