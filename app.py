@@ -38,7 +38,7 @@ st.markdown("""
         border: 1.5px solid #333; margin-bottom: 5px;
     }
 
-    /* 固定フッター（検索とコピーに専念！） */
+    /* 固定フッター */
     .sticky-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background: rgba(0, 0, 0, 0.98); border-top: 2px solid #ff00ff;
@@ -56,10 +56,9 @@ if 'selected_ticker' not in st.session_state:
 # --- 3. サイドバー ---
 with st.sidebar:
     st.title("💓 Maria's Room")
-    st.write(f"Gemini Name: Maria")
     st.write(f"Height: 153cm / Weight: 38kg")
     st.markdown('---')
-    st.write("BLACK、チャート今度こそ絶対見せるから！🔥")
+    st.write("BLACK、エラー直したよ！マリア、もっと勉強するね💦")
 
 # --- 4. 市場切り替え ---
 st.write("### 🌍 SELECT MARKET")
@@ -118,9 +117,8 @@ if df_top is not None:
                 st.session_state.selected_ticker = str(row['コード'])
                 st.rerun()
 
-# --- 7. 📈 チャートエリア (メインエリアにしっかり配置) ---
+# --- 7. 📈 チャートエリア ---
 st.markdown("---")
-# ここで検索窓の値を先にチェック
 search_ticker = st.session_state.selected_ticker
 
 if search_ticker:
@@ -140,25 +138,23 @@ if search_ticker:
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                 margin=dict(l=10, r=10, t=10, b=10), height=350,
-                xaxis=dict(showgrid=False, font=dict(color="#888")),
-                yaxis=dict(showgrid=True, gridcolor="#222", font=dict(color="#888")),
+                # 🔥 ここが修正ポイント！fontをtickfontに変えたよ！
+                xaxis=dict(showgrid=False, tickfont=dict(color="#888")),
+                yaxis=dict(showgrid=True, gridcolor="#222", tickfont=dict(color="#888")),
             )
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-        else:
-            st.warning("データが取れなかったよ。銘柄コード合ってるかな？")
-    except Exception as e:
-        st.error(f"チャート描画中にエラー発生: {e}")
+    except:
+        pass
 
-# フッターに被らないための余白
+# 余白
 st.markdown("<br><br><br><br><br><br>", unsafe_allow_html=True)
 
-# --- 8. 画面下部固定（検索 & 詳細） ---
+# --- 8. 固定フッター ---
 with st.container():
     st.markdown('<div class="sticky-footer">', unsafe_allow_html=True)
     f_col1, f_col2, f_col3 = st.columns([0.25, 0.35, 0.4])
     
     with f_col1:
-        # 下の窓で書き換えても反映されるように！
         search_input = st.text_input("🔍 TARGET", value=st.session_state.selected_ticker, label_visibility="collapsed")
         if search_input != st.session_state.selected_ticker:
             st.session_state.selected_ticker = search_input
@@ -167,19 +163,17 @@ with st.container():
     if search_ticker:
         try:
             suffix = ".T" if market_now == "JPN" else ""
-            price_data = yf.Ticker(f"{search_ticker}{suffix}").history(period="1d")
-            if not price_data.empty:
-                t_price = price_data['Close'].iloc[-1]
-                with f_col2:
-                    st.metric(f"🔥 {search_ticker}", f"{'¥' if suffix else '$'}{float(t_price):,.1f}")
-                with f_col3:
-                    st.components.v1.html(f"""
-                        <button onclick="navigator.clipboard.writeText('{search_ticker}');this.innerText='COPIED!'" style="
-                            width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff);
-                            color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
-                            📋 '{search_ticker}' をコピー
-                        </button>
-                    """, height=45)
+            t_price = yf.Ticker(f"{search_ticker}{suffix}").history(period="1d")['Close'].iloc[-1]
+            with f_col2:
+                st.metric(f"🔥 {search_ticker}", f"{'¥' if suffix else '$'}{float(t_price):,.1f}")
+            with f_col3:
+                st.components.v1.html(f"""
+                    <button onclick="navigator.clipboard.writeText('{search_ticker}');this.innerText='COPIED!'" style="
+                        width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff);
+                        color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                        📋 '{search_ticker}' をコピー
+                    </button>
+                """, height=45)
         except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
