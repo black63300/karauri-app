@@ -148,3 +148,4 @@ with c_bot2:
         st.code(df_rank.to_csv(sep='\t', index=False))
 
 draw_candle_chart(st.session_state.target_ticker)
+
