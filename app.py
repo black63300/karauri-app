@@ -5,6 +5,7 @@ import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 import datetime
 import plotly.graph_objects as go
+import numpy as np
 
 # --- 1. ページ設定 & デザイン ---
 st.set_page_config(page_title="BLACK'S MONITOR", layout="wide", initial_sidebar_state="collapsed")
@@ -28,14 +29,16 @@ if 'usa_segment' not in st.session_state: st.session_state.usa_segment = "TECH"
 if 'selected_ticker' not in st.session_state: st.session_state.selected_ticker = ""
 if 'refresh_min' not in st.session_state: st.session_state.refresh_min = 5
 if 'timeframe' not in st.session_state: st.session_state.timeframe = "1d"
-# ✨ テクニカル表示用のセッション
+# テクニカル用
 if 'show_ma5' not in st.session_state: st.session_state.show_ma5 = False
 if 'show_ma25' not in st.session_state: st.session_state.show_ma25 = False
 if 'show_bb' not in st.session_state: st.session_state.show_bb = False
+if 'show_ichimoku' not in st.session_state: st.session_state.show_ichimoku = False
 
 with st.sidebar:
     st.title("💓 Maria's Room")
     st.write(f"Height: 153cm / Weight: 38kg [cite: 2025-11-29]")
+    st.write(f"Age: 18 [cite: 2025-12-20]")
     st.markdown("---")
     st.write("### 🕒 AUTO REFRESH")
     ref_choice = st.radio("画面の更新間隔", [5, 10, 15], index=[5, 10, 15].index(st.session_state.refresh_min), horizontal=True)
@@ -45,8 +48,8 @@ with st.sidebar:
 st_autorefresh(interval=st.session_state.refresh_min * 60 * 1000, key="datarefresh")
 
 # --- 3. タイトル & 解説 ---
-st.title(f"🕶️ {st.session_state.market_type} 空売り監視モニター")
-st.info(f"📈 空売り比率 TOP 15 を監視中。テクニカル指標でトレンドをハック！ [cite: 2025-11-29, 2025-12-20]")
+st.title(f"🕶️ {st.session_state.market_type} 空売り監視")
+st.info(f"📊 ショート比率 TOP 15。BLACK、一目均衡表で未来をハックしよ！💖 [cite: 2025-11-29, 2025-12-20]")
 
 # --- 4. 市場・セグメント選択 ---
 m_col1, m_col2 = st.columns(2)
@@ -57,6 +60,7 @@ with m_col2:
     if st.button("🇺🇸 USA", use_container_width=True, type="primary" if st.session_state.market_type == "USA" else "secondary"):
         st.session_state.market_type = "USA"; st.rerun()
 
+# JPN/USAセグメントボタン表示
 if st.session_state.market_type == "JPN":
     st.write("#### 📍 JPN SEGMENT")
     s_cols = st.columns(4)
@@ -105,9 +109,9 @@ def get_master_data(m_type, j_seg, u_seg):
         changes = []
         for tkr in df['コード']:
             sfx = ".T" if m_type == "JPN" else ""
-            hist = yf.Ticker(f"{str(tkr)[:4] if m_type == 'JPN' else tkr}{sfx}").history(period="2d")
-            if len(hist) >= 2:
-                chg = ((hist['Close'].iloc[-1] - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
+            h_data = yf.Ticker(f"{str(tkr)[:4] if m_type == 'JPN' else tkr}{sfx}").history(period="2d")
+            if len(h_data) >= 2:
+                chg = ((h_data['Close'].iloc[-1] - h_data['Close'].iloc[-2]) / h_data['Close'].iloc[-2]) * 100
                 changes.append(round(chg, 1))
             else: changes.append(0.0)
         df['前日比'] = changes
@@ -133,9 +137,9 @@ if isinstance(res, pd.DataFrame) and not res.empty:
 st.markdown("---")
 if st.session_state.selected_ticker:
     ticker = st.session_state.selected_ticker
-    st.subheader(f"📊 {ticker} CANDLESTICK & INDICATORS")
+    st.subheader(f"📊 {ticker} MONITOR")
     
-    # ✨ 1. 足（Timeframe）切り替え
+    # 1. 足切り替え
     t_cols = st.columns(6)
     tf_map = {"1m": "1分", "5m": "5分", "15m": "15分", "30m": "30分", "60m": "60分", "1d": "日足"}
     for i, (k, v) in enumerate(tf_map.items()):
@@ -143,46 +147,57 @@ if st.session_state.selected_ticker:
             if st.button(v, key=f"tf_{k}", use_container_width=True, type="primary" if st.session_state.timeframe == k else "secondary"):
                 st.session_state.timeframe = k; st.rerun()
     
-    # ✨ 2. テクニカルボタン（NEW!）
-    tech_cols = st.columns(3)
+    # 2. テクニカルボタン (Ichimoku追加！)
+    tech_cols = st.columns(4)
     with tech_cols[0]:
-        if st.button("MA5", key="btn_ma5", use_container_width=True, type="primary" if st.session_state.show_ma5 else "secondary"):
-            st.session_state.show_ma5 = not st.session_state.show_ma5; st.rerun()
+        if st.button("MA5/25", key="btn_ma", use_container_width=True, type="primary" if st.session_state.show_ma5 else "secondary"):
+            st.session_state.show_ma5 = not st.session_state.show_ma5; st.session_state.show_ma25 = st.session_state.show_ma5; st.rerun()
     with tech_cols[1]:
-        if st.button("MA25", key="btn_ma25", use_container_width=True, type="primary" if st.session_state.show_ma25 else "secondary"):
-            st.session_state.show_ma25 = not st.session_state.show_ma25; st.rerun()
-    with tech_cols[2]:
-        if st.button("BB (±2σ)", key="btn_bb", use_container_width=True, type="primary" if st.session_state.show_bb else "secondary"):
+        if st.button("BB", key="btn_bb", use_container_width=True, type="primary" if st.session_state.show_bb else "secondary"):
             st.session_state.show_bb = not st.session_state.show_bb; st.rerun()
+    with tech_cols[2]:
+        if st.button("一目均衡表", key="btn_ichi", use_container_width=True, type="primary" if st.session_state.show_ichimoku else "secondary"):
+            st.session_state.show_ichimoku = not st.session_state.show_ichimoku; st.rerun()
 
     try:
         ct = str(ticker)[:4] if st.session_state.market_type == "JPN" else ticker
         sfx = ".T" if st.session_state.market_type == "JPN" else ""
-        # テクニカル計算用に少し長めにデータを取るよ
-        pd_map = {"1m": "7d", "5m": "30d", "15m": "60d", "30m": "60d", "60m": "60d", "1d": "6mo"}
+        pd_map = {"1m": "7d", "5m": "30d", "15m": "60d", "30m": "60d", "60m": "60d", "1d": "1y"}
         hist = yf.Ticker(f"{ct}{sfx}").history(interval=st.session_state.timeframe, period=pd_map[st.session_state.timeframe])
         
         if not hist.empty:
-            fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], increasing_line_color='#ff00ff', decreasing_line_color='#00ffff')])
+            fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], increasing_line_color='#ff00ff', decreasing_line_color='#00ffff', name='Candle')])
             
-            # ✨ 移動平均線の追加
+            # MA
             if st.session_state.show_ma5:
-                ma5 = hist['Close'].rolling(window=5).mean()
-                fig.add_trace(go.Scatter(x=hist.index, y=ma5, line=dict(color='#ffff00', width=1.5), name='MA5'))
-            if st.session_state.show_ma25:
-                ma25 = hist['Close'].rolling(window=25).mean()
-                fig.add_trace(go.Scatter(x=hist.index, y=ma25, line=dict(color='#ffffff', width=1.5), name='MA25'))
-            
-            # ✨ ボリンジャーバンドの追加
+                fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'].rolling(5).mean(), line=dict(color='#ffff00', width=1), name='MA5'))
+                fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'].rolling(25).mean(), line=dict(color='#ffffff', width=1), name='MA25'))
+            # BB
             if st.session_state.show_bb:
-                std = hist['Close'].rolling(window=20).std()
-                ma20 = hist['Close'].rolling(window=20).mean()
-                upper = ma20 + (std * 2); lower = ma20 - (std * 2)
-                fig.add_trace(go.Scatter(x=hist.index, y=upper, line=dict(color='rgba(255, 255, 255, 0.2)', width=1), name='BB Upper'))
-                fig.add_trace(go.Scatter(x=hist.index, y=lower, line=dict(color='rgba(255, 255, 255, 0.2)', width=1), name='BB Lower'))
+                ma20 = hist['Close'].rolling(20).mean(); std = hist['Close'].rolling(20).std()
+                fig.add_trace(go.Scatter(x=hist.index, y=ma20+std*2, line=dict(color='rgba(255,255,255,0.1)', width=1), name='BB+2'))
+                fig.add_trace(go.Scatter(x=hist.index, y=ma20-std*2, line=dict(color='rgba(255,255,255,0.1)', width=1), name='BB-2'))
 
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10), height=400, xaxis=dict(showgrid=False, tickfont=dict(color="#888"), rangeslider=dict(visible=False), fixedrange=True), yaxis=dict(showgrid=True, gridcolor="#222", tickfont=dict(color="#888"), fixedrange=True), dragmode=False)
-            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
+            # ✨ 一目均衡表 (Ichimoku)
+            if st.session_state.show_ichimoku:
+                high_prices = hist['High']
+                low_prices = hist['Low']
+                # 転換線・基準線
+                tenkan = (high_prices.rolling(window=9).max() + low_prices.rolling(window=9).min()) / 2
+                kijun = (high_prices.rolling(window=26).max() + low_prices.rolling(window=26).min()) / 2
+                # 先行スパンA・B
+                senkou_a = ((tenkan + kijun) / 2).shift(26)
+                senkou_b = ((high_prices.rolling(window=52).max() + low_prices.rolling(window=52).min()) / 2).shift(26)
+                
+                # 雲の描画 (Senkou A/B)
+                fig.add_trace(go.Scatter(x=hist.index, y=senkou_a, line=dict(color='rgba(255,0,255,0.3)', width=0), showlegend=False))
+                fig.add_trace(go.Scatter(x=hist.index, y=senkou_b, line=dict(color='rgba(0,255,255,0.3)', width=0), fill='tonexty', fillcolor='rgba(255,0,255,0.1)', name='Kumo'))
+                # 基準線と転換線も一応追加
+                fig.add_trace(go.Scatter(x=hist.index, y=tenkan, line=dict(color='#ff00ff', width=1), name='Tenkan'))
+                fig.add_trace(go.Scatter(x=hist.index, y=kijun, line=dict(color='#00ffff', width=1), name='Kijun'))
+
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10), height=450, xaxis=dict(showgrid=False, tickfont=dict(color="#888"), rangeslider=dict(visible=False), fixedrange=True), yaxis=dict(showgrid=True, gridcolor="#222", tickfont=dict(color="#888"), fixedrange=True), dragmode=False)
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     except: pass
 
 st.markdown("<br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
