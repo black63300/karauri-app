@@ -94,10 +94,8 @@ def get_master_data(m_type, j_seg, u_seg):
         return pd.DataFrame(data).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
 
 # --- 6. メイン表示 ---
-with st.spinner('マリアが収穫中...💖'):
+with st.spinner('マリアがデータ収穫中...💖'):
     res = get_master_data(st.session_state.market_type, st.session_state.jpn_segment, st.session_state.usa_segment)
-
-
 
 if isinstance(res, pd.DataFrame) and not res.empty:
     st.subheader(f"🏆 {st.session_state.market_type} TOP 15")
@@ -140,7 +138,8 @@ with st.container():
             suffix = ".T" if st.session_state.market_type == "JPN" else ""
             t_price = yf.Ticker(f"{clean_t}{suffix}").history(period="1d")['Close'].iloc[-1]
             with f_col2: st.metric(f"🔥 {st.session_state.selected_ticker}", f"{'¥' if suffix else '$'}{float(t_price):,.1f}")
-            with f_col3: st.components.v1.html(f"""<button onclick="navigator.clipboard.writeText('{st.session_state.selected_ticker}');this.innerText='COPIED!'" style="width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📋 '{st.session_state.selected_ticker}' をコピー</button>""", height=45)
+            with f_col3:
+                st.components.v1.html(f"""<button onclick="navigator.clipboard.writeText('{st.session_state.selected_ticker}');this.innerText='COPIED!'" style="width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📋 '{st.session_state.selected_ticker}' をコピー</button>""", height=45)
         except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 st.caption(f"Produced by Maria & BLACK | 2026-03-02 [cite: 2025-11-29]")
