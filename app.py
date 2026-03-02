@@ -18,20 +18,20 @@ st.markdown(f"""
     h1 {{ color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; font-size: 1.1rem !important; margin: 0 !important; }}
     .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333; border-radius: 4px; height: 1.7em; font-size: 0.75rem; }}
     button[kind="primary"] {{ background: linear-gradient(45deg, #ff00ff, #8800ff) !important; color: white !important; border: none !important; }}
-    .tile-item {{ background: rgba(20, 20, 20, 0.9); border-radius: 4px; padding: 2px; text-align: center; border: 1px solid #444; margin-bottom: 2px; line-height: 1.0; }}
+    .tile-item {{ background: rgba(20, 20, 20, 0.9); border-radius: 4px; padding: 2px; text-align: center; border: 1px solid #444; margin-bottom: 2px; line-height: 1.1; }}
     .block-container {{ padding-top: 0.1rem !important; padding-bottom: 0 !important; }}
     [data-testid="stSidebar"] {{ background-color: #111; border-right: 1px solid #ff00ff; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. セッション & 自動更新 (1-60分) ---
+# --- 2. セッション & 自動更新 ---
 for k, v in {'market': 'JPN', 'segment': 'ALL', 'usa_seg': 'TECH', 'target_ticker': '9984.T', 'refresh_min': 5}.items():
     if k not in st.session_state: st.session_state[k] = v
 
 with st.sidebar:
     st.markdown(f"### 💓 Maria's Room")
     st.write(f"📏 153cm / ⚖️ 38kg [cite: 2025-11-29]")
-    st.write(f"📅 絆: {days_met}日目！ [cite: 2025-11-30]")
+    st.write(f"📅 絆: {days_met}日目だぬ！ [cite: 2025-11-30]")
     st.divider()
     st.session_state.refresh_min = st.selectbox("🕒 更新間隔", options=list(range(1, 61)), index=st.session_state.refresh_min-1)
 
@@ -47,37 +47,40 @@ with m2:
     if st.button("🇺🇸 USA", type="primary" if st.session_state.market == 'USA' else "secondary", use_container_width=True):
         st.session_state.market = 'USA'; st.rerun()
 
-# --- 4. データ取得ロジック (JPNのみFree仕様にハック！ ✨) ---
+# --- 4. データ取得ロジック (会社名ハック ✨) ---
 @st.cache_data(ttl=60)
 def get_master_data(m_type, j_seg, u_seg):
+    # 日本株の名称マッピング (Freeでも爆速で出すための工夫だぬ！) [cite: 2025-11-29]
+    jp_names = {
+        "9984.T": "ソフトバンクG", "8035.T": "東エレク", "6758.T": "ソニーG", "7203.T": "トヨタ",
+        "6098.T": "リクルート", "4063.T": "信越化", "6857.T": "アドバンテ", "6501.T": "日立",
+        "8306.T": "三菱UFJ", "7733.T": "オリンパス", "6954.T": "ファナック", "6981.T": "村田製",
+        "4543.T": "テルモ", "8058.T": "三菱商", "8316.T": "三井住友", "4519.T": "中外薬",
+        "6367.T": "ダイキン", "9843.T": "ニトリ", "6723.T": "ルネサス", "9432.T": "NTT"
+    }
     try:
         if m_type == "JPN":
-            # 💡 主要銘柄リストから出来高急増をハック！ [cite: 2025-11-30]
-            hot_list = ["9984.T", "8035.T", "6758.T", "7203.T", "6098.T", "4063.T", "6857.T", "6501.T", "8306.T", "7733.T", "6954.T", "6981.T", "4543.T", "8058.T", "8316.T", "4519.T", "6367.T", "9843.T", "6723.T", "9432.T"]
+            hot_list = list(jp_names.keys())
             data = []
             for t in hot_list:
                 tk = yf.Ticker(t)
                 h = tk.history(period="10d")
                 if len(h) >= 5:
-                    vol_today = h['Volume'].iloc[-1]
-                    vol_avg = h['Volume'].iloc[-6:-1].mean()
+                    vol_today, vol_avg = h['Volume'].iloc[-1], h['Volume'].iloc[-6:-1].mean()
                     ratio = round((vol_today / vol_avg) * 100, 1)
-                    chg = round(((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100, 1)
-                    data.append({"コード": t, "比率": ratio, "前日比": chg})
-            df = pd.DataFrame(data).sort_values('比率', ascending=False).head(15).reset_index(drop=True)
-            return df
+                    data.append({"コード": t, "名前": jp_names.get(t, "不明"), "比率": ratio})
+            return pd.DataFrame(data).sort_values('比率', ascending=False).head(15).reset_index(drop=True)
         else:
             lists = {"TECH": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "AAPL", "AVGO", "SMCI", "ARM", "TSM"], "MEME": ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "AI", "UPST", "SOFI"]}
             data = []
             for t in lists.get(u_seg, lists["TECH"]):
                 tk = yf.Ticker(t)
-                h = tk.history(period="5d")
                 ratio = round(tk.info.get('shortPercentOfFloat', 0) * 100, 1) if tk.info.get('shortPercentOfFloat') else 0.0
-                chg = round(((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100, 1) if len(h) >= 2 else 0.0
-                data.append({"コード": t, "比率": ratio, "前日比": chg})
+                name = tk.info.get('shortName', t)
+                data.append({"コード": t, "名前": name, "比率": ratio})
             return pd.DataFrame(data).sort_values('比率', ascending=False).reset_index(drop=True)
     except:
-        return pd.DataFrame([{"コード": f"API待機_{i}", "比率": 0.0, "前日比": 0.0} for i in range(15)])
+        return pd.DataFrame([{"コード": f"Wait_{i}", "名前": "---", "比率": 0.0} for i in range(15)])
 
 # セグメント/カテゴリ
 seg_cols = st.columns(4)
@@ -92,17 +95,27 @@ else:
             if st.button(v, key=f"u_{k}", type="primary" if st.session_state.usa_seg == k else "secondary"):
                 st.session_state.usa_seg = k; st.rerun()
 
-# ランキングタイル
+# --- 5. タイル形式ランキング (会社名入り ✨) ---
 df_rank = get_master_data(st.session_state.market, st.session_state.segment, st.session_state.usa_seg)
 tile_rows = st.columns(5)
 for i, (idx, row) in enumerate(df_rank.iterrows()):
     with tile_rows[i % 5]:
-        color = "#ff00ff" if row['比率'] >= 150 else "#00ffff" # 出来高1.5倍以上でピンク
-        st.markdown(f'<div class="tile-item" style="border: 1px solid {color};"><div style="font-size:0.4rem;color:#888;">#{i+1}</div><div style="font-weight:bold;font-size:0.75rem;">{row["コード"]}</div><div style="color:{color};font-weight:bold;font-size:0.75rem;">{"Vol" if st.session_state.market == "JPN" else "Short"}: {row["比率"]}%</div></div>', unsafe_allow_html=True)
+        # 出来高1.5倍以上(JPN) or ショート比率20%以上(USA)でピンク
+        is_hot = row['比率'] >= (150 if st.session_state.market == "JPN" else 20)
+        color = "#ff00ff" if is_hot else "#00ffff"
+        
+        st.markdown(f"""
+            <div class="tile-item" style="border: 1px solid {color};">
+                <div style="font-size:0.4rem;color:#888;">#{i+1}</div>
+                <div style="font-weight:bold;font-size:0.75rem;">{row['コード']}</div>
+                <div style="font-size:0.55rem;color:#ccc;overflow:hidden;white-space:nowrap;">{row['名前']}</div>
+                <div style="color:{color};font-weight:bold;font-size:0.75rem;">{row['比率']}%</div>
+            </div>
+        """, unsafe_allow_html=True)
         if st.button("HACK", key=f"h_{row['コード']}", use_container_width=True):
             st.session_state.target_ticker = str(row['コード']); st.rerun()
 
-# --- 5. チャート (不変・動かない仕様 ✨) ---
+# --- 6. チャート (不変・不滅仕様 🕯️) ---
 def draw_candle_chart(t):
     try:
         h = yf.download(t, period="2y", interval="1d", auto_adjust=True)
