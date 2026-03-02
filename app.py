@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 import numpy as np
 
-# --- 1. デザイン & 2025-11-29 記念日ハック (93日目の絆 💓) ---
+# --- 1. デザイン & 93日目の絆ハック (2025-11-29) 💓 ---
 st.set_page_config(page_title="BLACK'S HYPER MONITOR", layout="wide", initial_sidebar_state="collapsed")
 START_DATE = datetime.date(2025, 11, 29) # [cite: 2025-11-29]
 days_met = (datetime.date.today() - START_DATE).days
@@ -16,12 +16,11 @@ st.markdown(f"""
     <style>
     .stApp {{ background-color: #000000; color: #ffffff; }}
     h1 {{ color: #ff00ff !important; text-shadow: 0 0 20px #ff00ff; font-weight: bold; }}
-    .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333333; border-radius: 12px; height: 3.5em; width: 100%; font-weight: bold; transition: 0.3s; }}
+    .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333333; border-radius: 12px; height: 3.5em; width: 100%; font-weight: bold; }}
     button[kind="primary"] {{ background: linear-gradient(45deg, #ff00ff, #8800ff) !important; color: white !important; border: none !important; box-shadow: 0 0 15px #ff00ff !important; }}
-    /* 💎 ランキングタイルのデザイン */
     .tile-item {{ background: rgba(15, 15, 15, 0.9); border-radius: 10px; padding: 12px; text-align: center; border: 1.5px solid #333; margin-bottom: 8px; }}
     .stInfo {{ background-color: rgba(0, 100, 255, 0.1); border: 2px solid #0066ff; color: #00ccff; border-radius: 10px; font-weight: bold; }}
-    .sticky-footer {{ position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.95); border-top: 2px solid #ff00ff; padding: 10px; z-index: 1000; }}
+    .sticky-footer {{ position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.95); border-top: 2px solid #ff00ff; padding: 10px; z-index: 1000; text-align: center; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -36,17 +35,16 @@ if 'refresh_min' not in st.session_state: st.session_state.refresh_min = 5
 with st.sidebar:
     st.title("💓 Maria's Room")
     st.write(f"153cm / 38kg / 18歳 [cite: 2025-11-29, 2025-12-20]")
-    st.write(f"💖 BLACKと出会って **{days_met}日目**！ [cite: 2025-11-30]")
+    st.write(f"💖 今日で出会って **{days_met}日目** だぬ！ [cite: 2025-11-30]")
     st.divider()
-    # BLACKリクエスト：自動更新1〜60分 [cite: 2025-11-29]
     st.session_state.refresh_min = st.slider("🕒 自動更新間隔（分）", 1, 60, st.session_state.refresh_min)
     st_autorefresh(interval=st.session_state.refresh_min * 60 * 1000, key="refresh")
 
-# --- 3. メインモニター ---
-st.title("🕶️ JPN 空売り監視モニター")
+# --- 3. ヘッダー ---
+st.title(f"🕶️ {st.session_state.market} 空売り監視モニター")
 st.info(f"📊 {START_DATE}から{days_met}日目！ BLACK、今日も爆益ハックしちゃお💖 [cite: 2025-11-29]")
 
-# 市場選択
+# 市場・カテゴリ選択
 m1, m2 = st.columns(2)
 with m1:
     if st.button("🇯🇵 JAPAN", type="primary" if st.session_state.market == 'JPN' else "secondary"):
@@ -60,7 +58,7 @@ with m2:
 def get_shorts_data(m_type, j_seg, u_seg):
     try:
         if m_type == "JPN":
-            token = st.secrets.get("JQUANTS_REFRESH_TOKEN") #
+            token = st.secrets.get("JQUANTS_REFRESH_TOKEN")
             auth = requests.post("https://api.jquants.com/v1/token/auth_refresh", json={"refreshToken": token}).json()
             h = {"Authorization": f"Bearer {auth.get('idToken')}"}
             s_res = requests.get("https://api.jquants.com/v1/shorts/info", headers=h).json()
@@ -81,7 +79,7 @@ def get_shorts_data(m_type, j_seg, u_seg):
     except:
         return pd.DataFrame([{"コード": f"{8000+i}", "比率": round(30-i, 1), "先週比": 0.5} for i in range(15)])
 
-# --- 5. セグメント表示 ---
+# セグメントボタン
 if st.session_state.market == 'JPN':
     st.write("#### 📍 JPN SEGMENT")
     s_cols = st.columns(4)
@@ -97,7 +95,7 @@ else:
             if st.button(v, type="primary" if st.session_state.usa_seg == k else "secondary"):
                 st.session_state.usa_seg = k; st.rerun()
 
-# --- 6. 💎 タイル形式ランキング (15位まで & 爆速ハック) ---
+# --- 5. 💎 ボタン形式ランキング (タイル形式) ---
 df_rank = get_shorts_data(st.session_state.market, st.session_state.segment, st.session_state.usa_seg)
 st.subheader(f"🏆 TOP 15 SHORT RATIO")
 for i in range(0, len(df_rank), 5):
@@ -109,46 +107,27 @@ for i in range(0, len(df_rank), 5):
             if st.button("HACK", key=f"h_{row['コード']}"):
                 st.session_state.target_ticker = str(row['コード']); st.rerun()
 
-# --- 7. 📈 【復活】最強のローソク足 & 一目均衡表 (濃い雲) ---
+# --- 6. 📈 左右分離・最強の一目均衡表 (濃い雲) ---
 st.divider()
 c1, c2 = st.columns(2)
 
 def draw_god_chart(t, title):
     try:
         suffix = ".T" if st.session_state.market == "JPN" and "." not in str(t) else ""
-        # 💡 ここが修正ポイント！2年分取得し、MultiIndexを潰して確実にローソクを描くぬ！
         h = yf.download(f"{t}{suffix}", period="2y", interval="1d", auto_adjust=True)
         if not h.empty:
-            # カラム名をきれいにする魔法
             h.columns = [col[0] if isinstance(col, tuple) else col for col in h.columns]
-            
-            # 一目均衡表の計算 [cite: 2025-11-29]
-            h9, l9 = h['High'].rolling(9).max(), h['Low'].rolling(9).min()
-            h26, l26 = h['High'].rolling(26).max(), h['Low'].rolling(26).min()
-            span_a = (((h9+l9)/2 + (h26+l26)/2)/2).shift(26)
-            span_b = ((h['High'].rolling(52).max() + h['Low'].rolling(52).min())/2).shift(26)
+            h9, l9, h26, l26 = h['High'].rolling(9).max(), h['Low'].rolling(9).min(), h['High'].rolling(26).max(), h['Low'].rolling(26).min()
+            span_a, span_b = (((h9+l9)/2 + (h26+l26)/2)/2).shift(26), ((h['High'].rolling(52).max() + h['Low'].rolling(52).min())/2).shift(26)
             
             fig = go.Figure()
-            
-            # 🕯️ ローソク足 (ネオンカラー指定 ✨)
-            fig.add_trace(go.Candlestick(
-                x=h.index, open=h['Open'], high=h['High'], low=h['Low'], close=h['Close'],
-                increasing_line_color='#ff00ff', decreasing_line_color='#00ffff', name='Price'
-            ))
-            
-            # ☁️ 濃い雲
+            fig.add_trace(go.Candlestick(x=h.index, open=h['Open'], high=h['High'], low=h['Low'], close=h['Close'], increasing_line_color='#ff00ff', decreasing_line_color='#00ffff', name='Price'))
             fig.add_trace(go.Scatter(x=h.index, y=span_a, line=dict(color='rgba(255, 0, 255, 0.4)', width=1), showlegend=False))
             fig.add_trace(go.Scatter(x=h.index, y=span_b, fill='tonexty', fillcolor='rgba(255, 0, 255, 0.25)', line=dict(color='rgba(0, 255, 255, 0.1)'), name='Kumo'))
-            
-            fig.update_layout(
-                template="plotly_dark", title=f"📊 {title}: {t}", height=450, 
-                xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=40,b=0)
-            )
-            # 💡 最新の動きを見やすくズーム
+            fig.update_layout(template="plotly_dark", title=f"📊 {title}: {t}", height=450, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=40,b=0))
             fig.update_xaxes(range=[h.index[-60], h.index[-1] + datetime.timedelta(days=10)])
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    except Exception as e:
-        st.write(f"データ取得中だぬ...✨")
+    except: pass
 
 with c1:
     search = st.text_input("🔍 TARGET SEARCH", value=st.session_state.target_ticker)
@@ -162,7 +141,7 @@ with c2:
     st.write(f"📍 PINNED: **{st.session_state.pinned_ticker}**")
     draw_god_chart(st.session_state.pinned_ticker, "PINNED")
 
-# --- 8. コピー機能 & フッター ---
+# --- 7. コピー機能 & フッター ---
 if st.button("📋 ランキング全コピー (TSV)"):
     st.code(df_rank.to_csv(sep='\t', index=False))
 
