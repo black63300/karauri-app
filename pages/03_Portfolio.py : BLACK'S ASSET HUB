@@ -1,0 +1,88 @@
+import streamlit as st
+import pandas as pd
+import yfinance as yf
+import datetime
+
+# --- 1. デザイン設定 ---
+st.set_page_config(page_title="BLACK'S PORTFOLIO", layout="wide")
+
+st.markdown("""
+    <style>
+    .stApp { background-color: #000000; color: #ffffff; }
+    h1, h2, h3 { color: #00ffff !important; text-shadow: 0 0 10px #00ffff; }
+    .stDataFrame { border: 1.5px solid #333; border-radius: 10px; }
+    [data-testid="stMetricValue"] { color: #ff00ff !important; text-shadow: 0 0 5px #ff00ff; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 2. データ管理（セッション） ---
+# BLACK、本来はデータベースが必要だけど、まずはブラウザを閉じるまで保持される方式で作るね！
+if 'portfolio' not in st.session_state:
+    # 初期サンプルデータ
+    st.session_state.portfolio = pd.DataFrame([
+        {"市場": "JPN", "コード": "7203", "株数": 100, "取得単価": 2500.0},
+        {"市場": "USA", "コード": "NVDA", "株数": 10, "取得単価": 120.0}
+    ])
+
+st.title("💎 BLACK'S ASSET HUB")
+st.write("保有株を入力して、今のバイブス（資産状況）をチェックしよ💖 [cite: 2025-11-29, 2025-11-30]")
+
+# --- 3. 入力セクション ---
+st.subheader("📝 保有銘柄の編集")
+st.info("※日本株はコードのみ（例: 7203）、米国株はティッカー（例: TSLA）を入れてね！ [cite: 2025-11-29]")
+
+# ユーザーが自由に表を編集できる魔法！
+edited_df = st.data_editor(st.session_state.portfolio, num_rows="dynamic", use_container_width=True)
+st.session_state.portfolio = edited_df
+
+# --- 4. 計算ロジック ---
+if st.button("🚀 資産額を計算する"):
+    with st.spinner('マリアが時価を計算中...💖'):
+        total_value_jpy = 0
+        total_profit_jpy = 0
+        calc_data = []
+
+        # 為替レート取得（USD/JPY）
+        usdjpy = yf.Ticker("JPY=X").history(period="1d")['Close'].iloc[-1]
+
+        for _, row in edited_df.iterrows():
+            ticker = str(row['コード'])
+            if row['市場'] == "JPN":
+                ticker += ".T"
+            
+            # 最新価格取得
+            stock = yf.Ticker(ticker)
+            current_price = stock.history(period="1d")['Close'].iloc[-1]
+            
+            market_value = current_price * row['株数']
+            cost_basis = row['取得単価'] * row['株数']
+            profit = market_value - cost_basis
+            
+            # 円換算
+            if row['市場'] == "USA":
+                market_value *= usdjpy
+                profit *= usdjpy
+            
+            total_value_jpy += market_value
+            total_profit_jpy += profit
+            
+            calc_data.append({
+                "銘柄": ticker,
+                "現在値": f"{current_price:,.1f}",
+                "評価額(円換算)": f"¥{market_value:,.0f}",
+                "損益(円換算)": f"¥{profit:,.0f}"
+            })
+
+        # --- 5. サマリー表示 ---
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("💰 総資産額 (円換算)", f"¥{total_value_jpy:,.0f}")
+        with col2:
+            st.metric("📈 合計含み損益", f"¥{total_profit_jpy:,.0f}", delta=f"{total_profit_jpy:,.0f}")
+
+        st.subheader("📊 銘柄別詳細")
+        st.table(calc_data)
+
+st.sidebar.write(f"Height: 153cm / Weight: 38kg [cite: 2025-11-29]")
+st.sidebar.caption(f"Produced by Maria for BLACK (Age 18) [cite: 2025-11-29, 2025-12-20]")
