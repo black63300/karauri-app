@@ -4,7 +4,7 @@ import requests
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. デザイン（検索エリア固定 & 可変グリッド） ---
+# --- 1. デザイン（BLACK専用・検索エリア完全固定） ---
 st.set_page_config(page_title="BLACK'S STICKY MONITOR", layout="wide")
 
 # 自動更新 (5分)
@@ -12,10 +12,11 @@ st_autorefresh(interval=300 * 1000, key="datarefresh")
 
 st.markdown("""
     <style>
-    .stApp { background-color: #000000; color: #ffffff; }
+    /* 全体の背景とネオン設定 */
+    .stApp { background-color: #000000; color: #ffffff; padding-bottom: 180px !important; }
     h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; font-size: 1.5rem !important; }
     
-    /* 📱 縦画面：3カラム / 横画面：6カラム */
+    /* 📱 縦3 / 横6 のタイル設定 */
     [data-testid="column"] {
         flex: 1 1 calc(33.333% - 8px) !important;
         min-width: calc(33.333% - 8px) !important;
@@ -32,7 +33,7 @@ st.markdown("""
         padding: 4px; text-align: center; margin-bottom: 2px;
     }
 
-    /* ボタンデザイン */
+    /* 「選ぶ」ボタンのデザイン */
     div.stButton > button {
         background-color: #111 !important; color: #00ffff !important;
         border: 1px solid #00ffff !important; font-size: 0.6rem !important;
@@ -44,22 +45,32 @@ st.markdown("""
     .reload-box button {
         background-color: #000 !important; color: #ff00ff !important;
         border: 2px solid #ff00ff !important; height: 35px !important;
-        font-size: 0.8rem !important;
     }
 
-    /* 📌 検索窓エリアを画面下部に固定する魔法 */
-    div[data-testid="stVerticalBlock"] > div:last-child {
-        position: sticky;
+    /* 📌 【重要】検索エリアを画面に「張り付ける」CSS */
+    .sticky-container {
+        position: fixed;
         bottom: 0;
-        background-color: rgba(0, 0, 0, 0.9);
-        padding: 10px;
+        left: 0;
+        width: 100%;
+        background-color: rgba(0, 0, 0, 0.95);
         border-top: 2px solid #ff00ff;
-        z-index: 999;
+        padding: 10px 15px 30px 15px; /* 下に余裕を持たせてiPhoneのバー回避 */
+        z-index: 999999;
+        box-shadow: 0 -10px 20px rgba(255, 0, 255, 0.3);
+    }
+    
+    /* メトリック（株価表示）をコンパクトに */
+    [data-testid="stMetric"] {
+        background-color: #111 !important;
+        border: 1px solid #00ffff !important;
+        border-radius: 8px !important;
+        padding: 5px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. セッション ---
+# --- 2. セッション状態 ---
 if 'selected_ticker' not in st.session_state:
     st.session_state.selected_ticker = ""
 
@@ -67,7 +78,7 @@ if 'selected_ticker' not in st.session_state:
 st.sidebar.title("🌍 GLOBAL SETTING")
 market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
 st.sidebar.markdown('---')
-st.sidebar.markdown('🛰️ 自動更新: <span style="color:#0f0;">ON (5m)</span>', unsafe_allow_html=True)
+st.sidebar.write("🛰️ 自動更新: ON (5min)")
 
 # --- 4. 秘密の鍵 ---
 try:
@@ -76,18 +87,7 @@ except:
     st.error("🔑 鍵がないよ！")
     st.stop()
 
-# --- 5. コピー用JS ---
-def copy_button(text):
-    st.components.v1.html(f"""
-        <button onclick="navigator.clipboard.writeText('{text}');this.innerText='✅OK'" style="
-            width: 100%; padding: 12px; background-color: #ff00ff; color: white;
-            border: none; border-radius: 10px; font-weight: bold; font-size: 16px;
-            box-shadow: 0 0 10px #ff00ff; cursor: pointer;">
-            📋 '{text}' をコピー
-        </button>
-    """, height=65)
-
-# --- 6. データ取得（TOP15限定） ---
+# --- 5. データ取得 (TOP 15) ---
 @st.cache_data(ttl=300)
 def get_data(m_type):
     if m_type == "日本株 (JPN)":
@@ -110,7 +110,7 @@ def get_data(m_type):
             except: continue
         return pd.DataFrame(data).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
 
-# --- 7. 表示エリア ---
+# --- 6. メイン表示 (ランキングエリア) ---
 c_title, c_reload = st.columns([0.7, 0.3])
 with c_title:
     st.title(f"🕶️ {market_type}")
@@ -125,7 +125,6 @@ df_top = get_data(market_type)
 
 if df_top is not None:
     st.subheader("🏆 TOP 15")
-    # 6列ずつループ
     for i in range(0, len(df_top), 6):
         cols = st.columns(6)
         row_slice = df_top.iloc[i:i+6]
@@ -143,17 +142,34 @@ if df_top is not None:
                     st.session_state.selected_ticker = str(row['コード'])
                     st.rerun()
 
-    # 🔥 ここから下が画面下部に固定されるよ！
-    st.markdown("<div>", unsafe_allow_html=True) # 固定エリア開始
-    search = st.text_input("🔍 選択中", value=st.session_state.selected_ticker)
-    if search:
-        try:
-            suffix = ".T" if market_type == "日本株 (JPN)" else ""
-            t_price = yf.Ticker(f"{search}{suffix}").history(period="1d")['Close'].iloc[-1]
-            c1, c2 = st.columns([0.4, 0.6])
-            c1.metric(f"🔥 {search}", f"{'¥' if suffix else '$'}{float(t_price):.1f}")
-            with c2: copy_button(search)
-        except: st.write("銘柄ハック中...")
-    st.markdown("</div>", unsafe_allow_html=True) # 固定エリア終了
+# --- 7. 📌 固定エリア (常に画面上に張り付く) ---
+# HTML/CSSでコンテナを強制固定
+st.markdown('<div class="sticky-container">', unsafe_allow_html=True)
+
+# 検索窓
+search = st.text_input("🔍 選択中", value=st.session_state.selected_ticker, key="sticky_search")
+
+if search:
+    try:
+        suffix = ".T" if market_type == "日本株 (JPN)" else ""
+        t_price = yf.Ticker(f"{search}{suffix}").history(period="1d")['Close'].iloc[-1]
+        
+        # 株価表示とコピーボタンを横に並べる
+        m1, m2 = st.columns([0.4, 0.6])
+        with m1:
+            st.metric(f"🔥 {search}", f"{'¥' if suffix else '$'}{float(t_price):.1f}")
+        with m2:
+            st.components.v1.html(f"""
+                <button onclick="navigator.clipboard.writeText('{search}');this.innerText='✅OK'" style="
+                    width: 100%; height: 50px; background-color: #ff00ff; color: white;
+                    border: none; border-radius: 10px; font-weight: bold; font-size: 16px;
+                    box-shadow: 0 0 10px #ff00ff; cursor: pointer;">
+                    📋 コピー
+                </button>
+            """, height=60)
+    except:
+        st.write("（銘柄確認中...）")
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 st.caption("Produced by Maria & BLACK")
