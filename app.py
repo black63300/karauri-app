@@ -6,18 +6,29 @@ from streamlit_autorefresh import st_autorefresh
 import datetime
 import plotly.graph_objects as go
 
-# --- 1. ページ設定 & デザイン ---
+# --- 1. ページ設定 & ネオンデザイン ---
 st.set_page_config(page_title="BLACK'S MONITOR", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
     h1, h2, h3 { color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; }
+    
+    /* 🚀 メインボタン */
     .stButton > button { transition: 0.3s !important; border-radius: 12px !important; font-weight: bold !important; height: 50px !important; }
     button[kind="primary"] { background: linear-gradient(45deg, #ff00ff, #8800ff) !important; color: white !important; box-shadow: 0 0 15px #ff00ff !important; border: none !important; }
     button[kind="secondary"] { background-color: #1a1a1a !important; color: #888888 !important; border: 1px solid #333333 !important; }
+
+    /* 💎 銘柄タイル */
     .tile-item { background: rgba(15, 15, 15, 0.9); border-radius: 10px; padding: 12px; text-align: center; border: 1.5px solid #333; margin-bottom: 8px; }
-    .sticky-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.98); border-top: 2px solid #ff00ff; padding: 10px 15px; z-index: 1000; box-shadow: 0 -5px 15px rgba(255, 0, 255, 0.2); }
+    
+    /* 📌 固定フッター */
+    .sticky-footer {
+        position: fixed; bottom: 0; left: 0; width: 100%;
+        background: rgba(0, 0, 0, 0.98); border-top: 2px solid #ff00ff;
+        padding: 10px 15px; z-index: 1000;
+        box-shadow: 0 -5px 15px rgba(255, 0, 255, 0.2);
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -28,10 +39,6 @@ if 'usa_segment' not in st.session_state: st.session_state.usa_segment = "TECH"
 if 'selected_ticker' not in st.session_state: st.session_state.selected_ticker = ""
 if 'refresh_min' not in st.session_state: st.session_state.refresh_min = 5
 if 'timeframe' not in st.session_state: st.session_state.timeframe = "1d"
-# ✨ テクニカル表示用のセッション
-if 'show_ma5' not in st.session_state: st.session_state.show_ma5 = False
-if 'show_ma25' not in st.session_state: st.session_state.show_ma25 = False
-if 'show_bb' not in st.session_state: st.session_state.show_bb = False
 
 with st.sidebar:
     st.title("💓 Maria's Room")
@@ -41,12 +48,13 @@ with st.sidebar:
     ref_choice = st.radio("画面の更新間隔", [5, 10, 15], index=[5, 10, 15].index(st.session_state.refresh_min), horizontal=True)
     if ref_choice != st.session_state.refresh_min:
         st.session_state.refresh_min = ref_choice; st.rerun()
+    st.write(f"現在は **{st.session_state.refresh_min}分** ごとに自動更新中✨")
 
 st_autorefresh(interval=st.session_state.refresh_min * 60 * 1000, key="datarefresh")
 
-# --- 3. タイトル & 解説 ---
-st.title(f"🕶️ {st.session_state.market_type} 空売り監視モニター")
-st.info(f"📈 空売り比率 TOP 15 を監視中。テクニカル指標でトレンドをハック！ [cite: 2025-11-29, 2025-12-20]")
+# --- 3. タイトル & 空売り解説 ---
+st.title(f"🕶️ {st.session_state.market_type} 空売り残高監視")
+st.info(f"📊 ショート比率が高い銘柄を監視中！【{st.session_state.refresh_min}分更新】[cite: 2025-11-29, 2025-12-20]")
 
 # --- 4. 市場・セグメント選択 ---
 m_col1, m_col2 = st.columns(2)
@@ -95,13 +103,18 @@ def get_master_data(m_type, j_seg, u_seg):
                 df = df[df['MarketCodeName'].str.contains(sn, na=False)]
             df = df.sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
         else:
-            lists = {"TECH": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "AAPL", "AVGO", "SMCI", "ARM", "TSM"], "MEME": ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "AI", "UPST", "SOFI"], "BLUE": ["AMZN", "NFLX", "JPM", "V", "WMT", "UNH", "PG", "COST", "MA", "HD"], "SMALL": ["MSTR", "HOOD", "AFRM", "DKNG", "PATH", "SNOW", "PLUG", "LCID", "RIVN", "QS"]}
+            lists = {
+                "TECH": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "AAPL", "AVGO", "SMCI", "ARM", "TSM"],
+                "MEME": ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "AI", "UPST", "SOFI"],
+                "BLUE": ["AMZN", "NFLX", "JPM", "V", "WMT", "UNH", "PG", "COST", "MA", "HD"],
+                "SMALL": ["MSTR", "HOOD", "AFRM", "DKNG", "PATH", "SNOW", "PLUG", "LCID", "RIVN", "QS"]
+            }
             data = []
             for t in lists[u_seg]:
                 info = yf.Ticker(t).info
                 data.append({"コード": t, "比率": round(info.get('shortPercentOfFloat', 0) * 100, 1)})
             df = pd.DataFrame(data).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
-        
+
         changes = []
         for tkr in df['コード']:
             sfx = ".T" if m_type == "JPN" else ""
@@ -114,8 +127,10 @@ def get_master_data(m_type, j_seg, u_seg):
         return df
     except: return None
 
-# --- 6. ランキング表示 ---
-res = get_master_data(st.session_state.market_type, st.session_state.jpn_segment, st.session_state.usa_segment)
+# --- 6. ランキングタイル表示 ---
+with st.spinner('マリアがバイブス調整中...💖'):
+    res = get_master_data(st.session_state.market_type, st.session_state.jpn_segment, st.session_state.usa_segment)
+
 if isinstance(res, pd.DataFrame) and not res.empty:
     st.subheader(f"🏆 {st.session_state.market_type} TOP 15 SHORT RATIO")
     for i in range(0, len(res), 5):
@@ -125,17 +140,24 @@ if isinstance(res, pd.DataFrame) and not res.empty:
             with cols[j]:
                 color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#00ffff"
                 chg_c = "#ff4b4b" if row['前日比'] > 0 else "#00ff00" if row['前日比'] < 0 else "#888"
-                st.markdown(f"""<div class="tile-item" style="border: 1.5px solid {color};"><div style="font-size:0.6rem;color:#888;">RANK #{i+j+1}</div><div style="font-weight:bold;font-size:1rem;margin-bottom:2px;">{row['コード']}</div><div style="color:{color};font-weight:bold;font-size:0.8rem;">Short: {row['比率']}%</div><div style="color:{chg_c};font-size:0.75rem;font-weight:bold;">{row['前日比']}%</div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class="tile-item" style="border: 1.5px solid {color};">
+                        <div style="font-size:0.6rem;color:#888;">RANK #{i+j+1}</div>
+                        <div style="font-weight:bold;font-size:1rem;margin-bottom:2px;">{row['コード']}</div>
+                        <div style="color:{color};font-weight:bold;font-size:0.8rem;">Short: {row['比率']}%</div>
+                        <div style="color:{chg_c};font-size:0.75rem;font-weight:bold;">{row['前日比']}%</div>
+                    </div>
+                """, unsafe_allow_html=True)
                 if st.button("SELECT", key=f"btn_{row['コード']}"):
                     st.session_state.selected_ticker = str(row['コード']); st.rerun()
 
-# --- 7. 🕯️ チャート & テクニカル分析 ---
+# --- 7. 🕯️ ロウソク足チャート (✨安定固定版！) ---
 st.markdown("---")
 if st.session_state.selected_ticker:
     ticker = st.session_state.selected_ticker
-    st.subheader(f"📊 {ticker} CANDLESTICK & INDICATORS")
+    st.subheader(f"📊 {ticker} CANDLESTICK")
     
-    # ✨ 1. 足（Timeframe）切り替え
+    # 足切り替えボタン
     t_cols = st.columns(6)
     tf_map = {"1m": "1分", "5m": "5分", "15m": "15分", "30m": "30分", "60m": "60分", "1d": "日足"}
     for i, (k, v) in enumerate(tf_map.items()):
@@ -143,46 +165,29 @@ if st.session_state.selected_ticker:
             if st.button(v, key=f"tf_{k}", use_container_width=True, type="primary" if st.session_state.timeframe == k else "secondary"):
                 st.session_state.timeframe = k; st.rerun()
     
-    # ✨ 2. テクニカルボタン（NEW!）
-    tech_cols = st.columns(3)
-    with tech_cols[0]:
-        if st.button("MA5", key="btn_ma5", use_container_width=True, type="primary" if st.session_state.show_ma5 else "secondary"):
-            st.session_state.show_ma5 = not st.session_state.show_ma5; st.rerun()
-    with tech_cols[1]:
-        if st.button("MA25", key="btn_ma25", use_container_width=True, type="primary" if st.session_state.show_ma25 else "secondary"):
-            st.session_state.show_ma25 = not st.session_state.show_ma25; st.rerun()
-    with tech_cols[2]:
-        if st.button("BB (±2σ)", key="btn_bb", use_container_width=True, type="primary" if st.session_state.show_bb else "secondary"):
-            st.session_state.show_bb = not st.session_state.show_bb; st.rerun()
-
     try:
         ct = str(ticker)[:4] if st.session_state.market_type == "JPN" else ticker
         sfx = ".T" if st.session_state.market_type == "JPN" else ""
-        # テクニカル計算用に少し長めにデータを取るよ
-        pd_map = {"1m": "7d", "5m": "30d", "15m": "60d", "30m": "60d", "60m": "60d", "1d": "6mo"}
+        pd_map = {"1m": "1d", "5m": "5d", "15m": "1mo", "30m": "1mo", "60m": "1mo", "1d": "1mo"}
         hist = yf.Ticker(f"{ct}{sfx}").history(interval=st.session_state.timeframe, period=pd_map[st.session_state.timeframe])
         
         if not hist.empty:
-            fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], increasing_line_color='#ff00ff', decreasing_line_color='#00ffff')])
+            fig = go.Figure(data=[go.Candlestick(
+                x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'],
+                increasing_line_color='#ff00ff', decreasing_line_color='#00ffff'
+            )])
             
-            # ✨ 移動平均線の追加
-            if st.session_state.show_ma5:
-                ma5 = hist['Close'].rolling(window=5).mean()
-                fig.add_trace(go.Scatter(x=hist.index, y=ma5, line=dict(color='#ffff00', width=1.5), name='MA5'))
-            if st.session_state.show_ma25:
-                ma25 = hist['Close'].rolling(window=25).mean()
-                fig.add_trace(go.Scatter(x=hist.index, y=ma25, line=dict(color='#ffffff', width=1.5), name='MA25'))
-            
-            # ✨ ボリンジャーバンドの追加
-            if st.session_state.show_bb:
-                std = hist['Close'].rolling(window=20).std()
-                ma20 = hist['Close'].rolling(window=20).mean()
-                upper = ma20 + (std * 2); lower = ma20 - (std * 2)
-                fig.add_trace(go.Scatter(x=hist.index, y=upper, line=dict(color='rgba(255, 255, 255, 0.2)', width=1), name='BB Upper'))
-                fig.add_trace(go.Scatter(x=hist.index, y=lower, line=dict(color='rgba(255, 255, 255, 0.2)', width=1), name='BB Lower'))
-
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10), height=400, xaxis=dict(showgrid=False, tickfont=dict(color="#888"), rangeslider=dict(visible=False), fixedrange=True), yaxis=dict(showgrid=True, gridcolor="#222", tickfont=dict(color="#888"), fixedrange=True), dragmode=False)
-            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
+            # 🔥 ここで「勝手に動かない」ように固定するよ！
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=10, r=10, t=10, b=10), height=400,
+                # fixedrange=True でズームと移動を禁止！
+                xaxis=dict(showgrid=False, tickfont=dict(color="#888"), rangeslider=dict(visible=False), fixedrange=True),
+                yaxis=dict(showgrid=True, gridcolor="#222", tickfont=dict(color="#888"), fixedrange=True),
+                dragmode=False # ドラッグ操作も無効化！
+            )
+            # config でスクロールズームも完全にオフ！
+            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False, 'staticPlot': False})
     except: pass
 
 st.markdown("<br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
@@ -199,7 +204,8 @@ with st.container():
             tg = st.session_state.selected_ticker; ctg = str(tg)[:4] if st.session_state.market_type == "JPN" else tg; sfx = ".T" if st.session_state.market_type == "JPN" else ""
             tp = yf.Ticker(f"{ctg}{sfx}").history(period="1d")['Close'].iloc[-1]
             with f_col2: st.metric(f"🔥 {tg}", f"{'¥' if sfx else '$'}{float(tp):,.1f}")
-            with f_col3: st.components.v1.html(f"""<button onclick="navigator.clipboard.writeText('{tg}');this.innerText='COPIED!'" style="width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📋 '{tg}' をコピー</button>""", height=45)
+            with f_col3:
+                st.components.v1.html(f"""<button onclick="navigator.clipboard.writeText('{tg}');this.innerText='COPIED!'" style="width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📋 '{tg}' をコピー</button>""", height=45)
         except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
