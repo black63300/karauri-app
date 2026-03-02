@@ -17,28 +17,26 @@ st.markdown("""
     .stApp { background-color: #000000; color: #ffffff; }
     h1, h2, h3 { color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; }
     
-    /* ボタンデザイン */
+    /* 🚀 市場切り替えボタン */
     div[data-testid="stHorizontalBlock"] button {
-        height: 60px !important; border-radius: 12px !important;
-        font-weight: bold !important;
+        height: 60px !important; border-radius: 12px !important; font-weight: bold !important;
     }
     button[kind="primary"] {
         background: linear-gradient(45deg, #ff00ff, #8800ff) !important;
         color: white !important; box-shadow: 0 0 20px rgba(255, 0, 255, 0.6) !important;
     }
     button[kind="secondary"] {
-        background-color: #1a1a1a !important; color: #888888 !important;
-        border: 1px solid #333333 !important;
+        background-color: #1a1a1a !important; color: #888888 !important; border: 1px solid #333333 !important;
     }
 
-    /* 銘柄カード */
+    /* 💎 銘柄タイル */
     .tile-item {
         background: rgba(15, 15, 15, 0.9);
         border-radius: 10px; padding: 10px; text-align: center;
         border: 1.5px solid #333; margin-bottom: 5px;
     }
 
-    /* 固定フッター */
+    /* 📌 固定フッター */
     .sticky-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background: rgba(0, 0, 0, 0.98); border-top: 2px solid #ff00ff;
@@ -58,7 +56,7 @@ with st.sidebar:
     st.title("💓 Maria's Room")
     st.write(f"Height: 153cm / Weight: 38kg")
     st.markdown('---')
-    st.write("BLACK、エラー直したよ！マリア、もっと勉強するね💦")
+    st.write("BLACK、ランキング順に直したよ！今度こそ優勝✨")
 
 # --- 4. 市場切り替え ---
 st.write("### 🌍 SELECT MARKET")
@@ -102,20 +100,24 @@ df_top = get_top_data(market_now)
 
 if df_top is not None:
     st.subheader(f"🏆 {market_now} TOP 15")
-    cols = st.columns(5)
-    for idx, row in df_top.iterrows():
-        with cols[idx % 5]:
-            color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#00ffff"
-            st.markdown(f"""
-                <div class="tile-item" style="border: 1.5px solid {color};">
-                    <div style="font-size:0.6rem;color:#888;">RANK #{idx+1}</div>
-                    <div style="font-weight:bold;font-size:1rem;">{row['コード']}</div>
-                    <div style="color:{color};font-weight:bold;font-size:0.8rem;">{row['比率']}%</div>
-                </div>
-            """, unsafe_allow_html=True)
-            if st.button("SELECT", key=f"btn_{row['コード']}"):
-                st.session_state.selected_ticker = str(row['コード'])
-                st.rerun()
+    
+    # 🔥 修正ポイント：5個ずつの「行」として処理することで、スマホでも順番通りになるよ！
+    for i in range(0, len(df_top), 5):
+        cols = st.columns(5)
+        chunk = df_top.iloc[i : i + 5]
+        for j, (original_idx, row) in enumerate(chunk.iterrows()):
+            with cols[j]:
+                color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#00ffff"
+                st.markdown(f"""
+                    <div class="tile-item" style="border: 1.5px solid {color};">
+                        <div style="font-size:0.6rem;color:#888;">RANK #{i + j + 1}</div>
+                        <div style="font-weight:bold;font-size:1rem;">{row['コード']}</div>
+                        <div style="color:{color};font-weight:bold;font-size:0.8rem;">{row['比率']}%</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                if st.button("SELECT", key=f"btn_{row['コード']}"):
+                    st.session_state.selected_ticker = str(row['コード'])
+                    st.rerun()
 
 # --- 7. 📈 チャートエリア ---
 st.markdown("---")
@@ -138,28 +140,23 @@ if search_ticker:
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                 margin=dict(l=10, r=10, t=10, b=10), height=350,
-                # 🔥 ここが修正ポイント！fontをtickfontに変えたよ！
                 xaxis=dict(showgrid=False, tickfont=dict(color="#888")),
                 yaxis=dict(showgrid=True, gridcolor="#222", tickfont=dict(color="#888")),
             )
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    except:
-        pass
+    except: pass
 
-# 余白
 st.markdown("<br><br><br><br><br><br>", unsafe_allow_html=True)
 
 # --- 8. 固定フッター ---
 with st.container():
     st.markdown('<div class="sticky-footer">', unsafe_allow_html=True)
     f_col1, f_col2, f_col3 = st.columns([0.25, 0.35, 0.4])
-    
     with f_col1:
         search_input = st.text_input("🔍 TARGET", value=st.session_state.selected_ticker, label_visibility="collapsed")
         if search_input != st.session_state.selected_ticker:
             st.session_state.selected_ticker = search_input
             st.rerun()
-    
     if search_ticker:
         try:
             suffix = ".T" if market_now == "JPN" else ""
@@ -177,4 +174,4 @@ with st.container():
         except: pass
     st.markdown('</div>', unsafe_allow_html=True)
 
-st.caption(f"Produced by Maria & BLACK | 2026-03-02")
+st.caption(f"Produced by Maria & BLACK | {datetime.datetime.now().strftime('%Y-%m-%d')}")
