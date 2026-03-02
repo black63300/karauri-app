@@ -4,28 +4,18 @@ import requests
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. デザイン（BLACK専用・上部鉄壁固定コックピット） ---
-st.set_page_config(page_title="BLACK'S FINAL COCKPIT", layout="wide")
+# --- 1. デザイン（検索エリア固定 & 可変グリッド） ---
+st.set_page_config(page_title="BLACK'S STICKY MONITOR", layout="wide")
 
-# 🔥 自動更新ステータス（5分 = 300秒）
-st_autorefresh(interval=300 * 1000, key="auto_refresh_trigger")
+# 自動更新 (5分)
+st_autorefresh(interval=300 * 1000, key="datarefresh")
 
 st.markdown("""
     <style>
-    /* 全体背景 */
     .stApp { background-color: #000000; color: #ffffff; }
-
-    /* 📌 【最強】最初のコンテナ（操作エリア）を画面上部にガッチリ固定 */
-    [data-testid="stVerticalBlock"] > div:first-child {
-        position: sticky !important;
-        top: 0;
-        z-index: 999999;
-        background-color: rgba(0, 0, 0, 0.95);
-        border-bottom: 2px solid #ff00ff;
-        padding: 10px 0;
-    }
-
-    /* 📱 縦3 / 横6 のタイル強制設定 */
+    h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; font-size: 1.5rem !important; }
+    
+    /* 📱 縦画面：3カラム / 横画面：6カラム */
     [data-testid="column"] {
         flex: 1 1 calc(33.333% - 8px) !important;
         min-width: calc(33.333% - 8px) !important;
@@ -39,36 +29,45 @@ st.markdown("""
     
     .tile-item {
         background-color: #111; border-radius: 8px;
-        padding: 5px; text-align: center; border: 1.5px solid #444;
+        padding: 4px; text-align: center; margin-bottom: 2px;
     }
 
-    /* 入力窓の視認性確保 */
-    input { color: #ffffff !important; background-color: #222 !important; border: 1px solid #ff00ff !important; }
-
-    /* 選ぶボタンのネオン水色 */
+    /* ボタンデザイン */
     div.stButton > button {
         background-color: #111 !important; color: #00ffff !important;
-        border: 1px solid #00ffff !important; font-size: 0.65rem !important;
-        height: 30px !important; width: 100% !important;
-        box-shadow: 0 0 5px #00ffff !important;
+        border: 1px solid #00ffff !important; font-size: 0.6rem !important;
+        height: 26px !important; line-height: 26px !important;
+        padding: 0 !important; width: 100% !important;
     }
     
-    /* 🔄 更新ボタンのデザイン */
-    .reload-container button {
+    /* 🔄 更新ボタン */
+    .reload-box button {
         background-color: #000 !important; color: #ff00ff !important;
-        border: 2px solid #ff00ff !important; font-weight: bold !important;
-        box-shadow: 0 0 10px #ff00ff !important;
+        border: 2px solid #ff00ff !important; height: 35px !important;
+        font-size: 0.8rem !important;
+    }
+
+    /* 📌 検索窓エリアを画面下部に固定する魔法 */
+    div[data-testid="stVerticalBlock"] > div:last-child {
+        position: sticky;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.9);
+        padding: 10px;
+        border-top: 2px solid #ff00ff;
+        z-index: 999;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. セッション管理 ---
+# --- 2. セッション ---
 if 'selected_ticker' not in st.session_state:
     st.session_state.selected_ticker = ""
 
-# --- 3. 市場選択 (サイドバー) ---
+# --- 3. サイドバー ---
 st.sidebar.title("🌍 GLOBAL SETTING")
-market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"], key="market_radio")
+market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
+st.sidebar.markdown('---')
+st.sidebar.markdown('🛰️ 自動更新: <span style="color:#0f0;">ON (5m)</span>', unsafe_allow_html=True)
 
 # --- 4. 秘密の鍵 ---
 try:
@@ -77,38 +76,18 @@ except:
     st.error("🔑 鍵がないよ！")
     st.stop()
 
-# --- 5. 📌 【最重要】上部固定操作パネル ---
-# このコンテナが画面の上に張り付いて、下のランキングだけが流れるよ！
-sticky_header = st.container()
-with sticky_header:
-    # 検索窓（セッションと連動）
-    search_val = st.text_input("🔍 銘柄ハック (選択中)", value=st.session_state.selected_ticker, key="main_search")
-    
-    # セッション更新の同期
-    if search_val != st.session_state.selected_ticker:
-        st.session_state.selected_ticker = search_val
+# --- 5. コピー用JS ---
+def copy_button(text):
+    st.components.v1.html(f"""
+        <button onclick="navigator.clipboard.writeText('{text}');this.innerText='✅OK'" style="
+            width: 100%; padding: 12px; background-color: #ff00ff; color: white;
+            border: none; border-radius: 10px; font-weight: bold; font-size: 16px;
+            box-shadow: 0 0 10px #ff00ff; cursor: pointer;">
+            📋 '{text}' をコピー
+        </button>
+    """, height=65)
 
-    if st.session_state.selected_ticker:
-        try:
-            suffix = ".T" if market_type == "日本株 (JPN)" else ""
-            t_price = yf.Ticker(f"{st.session_state.selected_ticker}{suffix}").history(period="1d")['Close'].iloc[-1]
-            c1, c2 = st.columns([0.4, 0.6])
-            with c1:
-                st.metric(f"🔥 {st.session_state.selected_ticker}", f"{'¥' if suffix else '$'}{float(t_price):.1f}")
-            with c2:
-                # コピーボタン
-                st.components.v1.html(f"""
-                    <button onclick="navigator.clipboard.writeText('{st.session_state.selected_ticker}');this.innerText='✅OK'" style="
-                        width: 100%; height: 50px; background-color: #ff00ff; color: white;
-                        border: none; border-radius: 10px; font-weight: bold; font-size: 18px;
-                        box-shadow: 0 0 10px #ff00ff; cursor: pointer;">
-                        📋 '{st.session_state.selected_ticker}' コピー
-                    </button>
-                """, height=65)
-        except:
-            st.write("銘柄ハック中...")
-
-# --- 6. データ取得エンジン (TOP 15限定) ---
+# --- 6. データ取得（TOP15限定） ---
 @st.cache_data(ttl=300)
 def get_data(m_type):
     if m_type == "日本株 (JPN)":
@@ -117,7 +96,8 @@ def get_data(m_type):
             headers = {"Authorization": f"Bearer {res_auth.json().get('idToken')}"}
             res_data = requests.get("https://api.jquants.com/v1/shorts/info", headers=headers)
             df = pd.DataFrame(res_data.json().get("shorts", []))
-            df['比率'] = pd.to_numeric(df['ShortSellingFraction']).round(1)
+            df = df.rename(columns={'Code': 'コード', 'ShortSellingFraction': '比率'})
+            df['比率'] = pd.to_numeric(df['比率']).round(1)
             return df.sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
         except: return None
     else:
@@ -130,40 +110,50 @@ def get_data(m_type):
             except: continue
         return pd.DataFrame(data).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
 
-# --- 7. ランキング表示 ---
-df_top = get_data(market_type)
-
-col_title, col_reload = st.columns([0.7, 0.3])
-with col_title:
-    st.subheader(f"🏆 {market_type} TOP 15")
-with col_reload:
-    # 🔄 手動更新ボタンを復活させたよ！
-    st.markdown('<div class="reload-container">', unsafe_allow_html=True)
+# --- 7. 表示エリア ---
+c_title, c_reload = st.columns([0.7, 0.3])
+with c_title:
+    st.title(f"🕶️ {market_type}")
+with c_reload:
+    st.markdown('<div class="reload-box">', unsafe_allow_html=True)
     if st.button("🔄 RELOAD"):
         st.cache_data.clear()
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
+df_top = get_data(market_type)
+
 if df_top is not None:
-    # 6列ループ (CSSで縦3/横6に自動調整)
+    st.subheader("🏆 TOP 15")
+    # 6列ずつループ
     for i in range(0, len(df_top), 6):
         cols = st.columns(6)
         row_slice = df_top.iloc[i:i+6]
         for idx, (original_idx, row) in enumerate(row_slice.iterrows()):
             with cols[idx]:
-                ticker = row['コード'] if 'コード' in row else row['Code']
                 color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#555"
                 st.markdown(f"""
-                    <div class="tile-item" style="border-color: {color};">
+                    <div class="tile-item" style="border: 1.5px solid {color};">
                         <div style="font-size:0.5rem;color:#888;">#{i+idx+1}</div>
-                        <div style="font-weight:bold;font-size:0.8rem;">{ticker}</div>
+                        <div style="font-weight:bold;font-size:0.8rem;">{row['コード']}</div>
                         <div style="color:{color};font-weight:bold;font-size:0.7rem;">{row['比率']}%</div>
                     </div>
                 """, unsafe_allow_html=True)
-                # 🔥 ボタンを押した瞬間に再描画して上の窓に反映！
-                if st.button("選ぶ", key=f"sel_{ticker}_{i+idx}_{market_type}"):
-                    st.session_state.selected_ticker = str(ticker)
+                if st.button("選ぶ", key=f"sel_{row['コード']}"):
+                    st.session_state.selected_ticker = str(row['コード'])
                     st.rerun()
 
-st.sidebar.markdown('🛰️ 自動更新: <span style="color:#0f0;">ON (5m)</span>', unsafe_allow_html=True)
+    # 🔥 ここから下が画面下部に固定されるよ！
+    st.markdown("<div>", unsafe_allow_html=True) # 固定エリア開始
+    search = st.text_input("🔍 選択中", value=st.session_state.selected_ticker)
+    if search:
+        try:
+            suffix = ".T" if market_type == "日本株 (JPN)" else ""
+            t_price = yf.Ticker(f"{search}{suffix}").history(period="1d")['Close'].iloc[-1]
+            c1, c2 = st.columns([0.4, 0.6])
+            c1.metric(f"🔥 {search}", f"{'¥' if suffix else '$'}{float(t_price):.1f}")
+            with c2: copy_button(search)
+        except: st.write("銘柄ハック中...")
+    st.markdown("</div>", unsafe_allow_html=True) # 固定エリア終了
+
 st.caption("Produced by Maria & BLACK")
