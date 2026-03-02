@@ -117,3 +117,4 @@ with c2:
     draw_god_chart(st.session_state.pinned_ticker, "right")
 
 st.markdown(f'<div class="sticky-footer">💖 Maria & BLACK | Anniversary: {days_met} days | 153cm / 38kg [cite: 2025-11-29]</div>', unsafe_allow_html=True)
+
