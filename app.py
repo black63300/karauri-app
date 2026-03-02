@@ -1,145 +1,159 @@
-import streamlit as st
+Import streamlit as st
 import pandas as pd
 import requests
 import yfinance as yf
 from streamlit_autorefresh import st_autorefresh
-import datetime
-import plotly.graph_objects as go
-import numpy as np
-import json
 
-# --- 1. デザイン設定 (一画面・スクロール排除) ---
-st.set_page_config(page_title="BLACK'S MONITOR", layout="wide", initial_sidebar_state="collapsed")
-START_DATE = datetime.date(2025, 11, 29) # [cite: 2025-11-29]
-days_met = (datetime.date.today() - START_DATE).days
+# --- 1. デザイン（検索エリア固定 & 可変グリッド） ---
+st.set_page_config(page_title="BLACK'S STICKY MONITOR", layout="wide")
 
-st.markdown(f"""
+# 自動更新 (5分)
+st_autorefresh(interval=300 * 1000, key="datarefresh")
+
+st.markdown("""
     <style>
-    .stApp {{ background-color: #000000; color: #ffffff; overflow: hidden; }}
-    h1 {{ color: #ff00ff !important; text-shadow: 0 0 10px #ff00ff; font-size: 1.1rem !important; margin: 0 !important; padding: 0.2rem 0; }}
-    .stButton>button {{ background-color: #1a1a1a; color: #ffffff; border: 1px solid #333; border-radius: 4px; height: 1.8em; font-size: 0.75rem; padding: 0; }}
-    button[kind="primary"] {{ background: linear-gradient(45deg, #ff00ff, #8800ff) !important; color: white !important; border: none !important; }}
-    .tile-item {{ background: rgba(20, 20, 20, 0.9); border-radius: 4px; padding: 2px; text-align: center; border: 1px solid #444; margin-bottom: 2px; line-height: 1.0; }}
-    .block-container {{ padding-top: 0.1rem !important; padding-bottom: 0 !important; }}
-    [data-testid="stSidebar"] {{ background-color: #111; border-right: 1px solid #ff00ff; }}
-    hr {{ margin: 0.2rem 0 !important; }}
+    .stApp { background-color: #000000; color: #ffffff; }
+    h1 { color: #ff00ff !important; text-shadow: 0 0 15px #ff00ff; font-size: 1.5rem !important; }
+    
+    /* 📱 縦画面：3カラム / 横画面：6カラム */
+    [data-testid="column"] {
+        flex: 1 1 calc(33.333% - 8px) !important;
+        min-width: calc(33.333% - 8px) !important;
+    }
+    @media (min-width: 600px) {
+        [data-testid="column"] {
+            flex: 1 1 calc(16.666% - 8px) !important;
+            min-width: calc(16.666% - 8px) !important;
+        }
+    }
+    
+    .tile-item {
+        background-color: #111; border-radius: 8px;
+        padding: 4px; text-align: center; margin-bottom: 2px;
+    }
+
+    /* ボタンデザイン */
+    div.stButton > button {
+        background-color: #111 !important; color: #00ffff !important;
+        border: 1px solid #00ffff !important; font-size: 0.6rem !important;
+        height: 26px !important; line-height: 26px !important;
+        padding: 0 !important; width: 100% !important;
+    }
+    
+    /* 🔄 更新ボタン */
+    .reload-box button {
+        background-color: #000 !important; color: #ff00ff !important;
+        border: 2px solid #ff00ff !important; height: 35px !important;
+        font-size: 0.8rem !important;
+    }
+
+    /* 📌 検索窓エリアを画面下部に固定する魔法 */
+    div[data-testid="stVerticalBlock"] > div:last-child {
+        position: sticky;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.9);
+        padding: 10px;
+        border-top: 2px solid #ff00ff;
+        z-index: 999;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. セッション & 更新間隔選択 (1-60分) ---
-for k, v in {'market': 'JPN', 'segment': 'ALL', 'usa_seg': 'TECH', 'target_ticker': '9984.T', 'refresh_min': 5}.items():
-    if k not in st.session_state: st.session_state[k] = v
+# --- 2. セッション ---
+if 'selected_ticker' not in st.session_state:
+    st.session_state.selected_ticker = ""
 
-with st.sidebar:
-    st.markdown(f"### 💓 Maria's Room")
-    st.write(f"153cm / 38kg [cite: 2025-11-29]")
-    st.write(f"出会いから **{days_met}日目** だぬ✨ [cite: 2025-11-30]")
-    st.divider()
-    st.session_state.refresh_min = st.selectbox(
-        "🕒 更新間隔 (分)", options=list(range(1, 61)), index=st.session_state.refresh_min - 1
-    )
+# --- 3. サイドバー ---
+st.sidebar.title("🌍 GLOBAL SETTING")
+market_type = st.sidebar.radio("市場選択", ["日本株 (JPN)", "米国株 (USA)"])
+st.sidebar.markdown('---')
+st.sidebar.markdown('🛰️ 自動更新: <span style="color:#0f0;">ON (5m)</span>', unsafe_allow_html=True)
 
-st_autorefresh(interval=st.session_state.refresh_min * 60 * 1000, key=f"refresh_{st.session_state.refresh_min}")
+# --- 4. 秘密の鍵 ---
+try:
+    REFRESH_TOKEN = st.secrets["JQUANTS_REFRESH_TOKEN"]
+except:
+    st.error("🔑 鍵がないよ！")
+    st.stop()
 
-# --- 3. 市場選択 ---
-st.markdown(f"<h1>🕶️ {st.session_state.market} 爆益監視モニター</h1>", unsafe_allow_html=True)
+# --- 5. コピー用JS ---
+def copy_button(text):
+    st.components.v1.html(f"""
+        <button onclick="navigator.clipboard.writeText('{text}');this.innerText='✅OK'" style="
+            width: 100%; padding: 12px; background-color: #ff00ff; color: white;
+            border: none; border-radius: 10px; font-weight: bold; font-size: 16px;
+            box-shadow: 0 0 10px #ff00ff; cursor: pointer;">
+            📋 '{text}' をコピー
+        </button>
+    """, height=65)
 
-m1, m2 = st.columns(2)
-with m1:
-    if st.button("🇯🇵 JPN", type="primary" if st.session_state.market == 'JPN' else "secondary", use_container_width=True):
-        st.session_state.market = 'JPN'; st.rerun()
-with m2:
-    if st.button("🇺🇸 USA", type="primary" if st.session_state.market == 'USA' else "secondary", use_container_width=True):
-        st.session_state.market = 'USA'; st.rerun()
-
-# --- 4. データ取得 (2番の根本解決 ✨) ---
-@st.cache_data(ttl=60)
-def get_shorts_data(m_type, j_seg, u_seg):
-    try:
-        if m_type == "JPN":
-            token = str(st.secrets["JQUANTS_REFRESH_TOKEN"]).strip() #
-            # 💡 送信形式を厳格化して 'refreshtoken is required' を抹殺するぬ！
-            payload = json.dumps({"refreshToken": token})
-            headers = {"Content-Type": "application/json"}
-            auth_res = requests.post("https://api.jquants.com/v1/token/auth_refresh", data=payload, headers=headers)
-            auth = auth_res.json()
-            
-            if "idToken" not in auth:
-                st.error(f"APIエラー: {auth.get('message', '認証失敗')}")
-                return pd.DataFrame()
-            
-            h = {"Authorization": f"Bearer {auth['idToken']}"}
-            s_res = requests.get("https://api.jquants.com/v1/shorts/info", headers=h).json()
-            i_res = requests.get("https://api.jquants.com/v1/listed/info", headers=h).json()
-            
-            df = pd.merge(pd.DataFrame(s_res['shorts']), pd.DataFrame(i_res['info'])[['Code', 'MarketCodeName']], on='Code')
-            df = df.rename(columns={'Code':'コード', 'ShortSellingFraction':'比率'})
+# --- 6. データ取得（TOP15限定） ---
+@st.cache_data(ttl=300)
+def get_data(m_type):
+    if m_type == "日本株 (JPN)":
+        try:
+            res_auth = requests.post("https://api.jquants.com/v1/token/auth_refresh", json={"refreshToken": REFRESH_TOKEN})
+            headers = {"Authorization": f"Bearer {res_auth.json().get('idToken')}"}
+            res_data = requests.get("https://api.jquants.com/v1/shorts/info", headers=headers)
+            df = pd.DataFrame(res_data.json().get("shorts", []))
+            df = df.rename(columns={'Code': 'コード', 'ShortSellingFraction': '比率'})
             df['比率'] = pd.to_numeric(df['比率']).round(1)
-            if j_seg != "ALL":
-                sn = {"Prime": "プライム", "Standard": "スタンダード", "Growth": "グロース"}.get(j_seg, j_seg)
-                df = df[df['MarketCodeName'].str.contains(sn, na=False)]
-            return df.sort_values('比率', ascending=False).head(15).reset_index(drop=True)
-        else:
-            lists = {"TECH": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "AAPL", "AVGO", "SMCI", "ARM", "TSM"], "MEME": ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "AI", "UPST", "SOFI"]}
-            return pd.DataFrame([{"コード": t, "比率": 20.0} for t in lists.get(u_seg, lists["TECH"])])
-    except:
-        return pd.DataFrame([{"コード": f"待機_{i}", "比率": 0.0} for i in range(15)])
+            return df.sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
+        except: return None
+    else:
+        watch = ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "NVDA", "NFLX", "AMD", "GOOGL", "META", "AAPL", "AMZN", "MSFT"]
+        data = []
+        for t in watch:
+            try:
+                info = yf.Ticker(t).info
+                data.append({"コード": t, "比率": round(info.get('shortPercentOfFloat', 0) * 100, 1)})
+            except: continue
+        return pd.DataFrame(data).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
 
-# セグメント/カテゴリ
-seg_cols = st.columns(4)
-if st.session_state.market == 'JPN':
-    for idx, (k, v) in enumerate({"ALL":"一括", "Prime":"P", "Standard":"S", "Growth":"G"}.items()):
-        with seg_cols[idx]:
-            if st.button(v, key=f"s_{k}", type="primary" if st.session_state.segment == k else "secondary"):
-                st.session_state.segment = k; st.rerun()
-else:
-    for idx, (k, v) in enumerate({"TECH":"テック", "MEME":"ミーム", "BLUE":"優良", "SMALL":"小型"}.items()):
-        with seg_cols[idx]:
-            if st.button(v, key=f"u_{k}", type="primary" if st.session_state.usa_seg == k else "secondary"):
-                st.session_state.usa_seg = k; st.rerun()
+# --- 7. 表示エリア ---
+c_title, c_reload = st.columns([0.7, 0.3])
+with c_title:
+    st.title(f"🕶️ {market_type}")
+with c_reload:
+    st.markdown('<div class="reload-box">', unsafe_allow_html=True)
+    if st.button("🔄 RELOAD"):
+        st.cache_data.clear()
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ランキングタイル
-df_rank = get_shorts_data(st.session_state.market, st.session_state.segment, st.session_state.usa_seg)
-tile_rows = st.columns(5)
-for i, (idx, row) in enumerate(df_rank.iterrows()):
-    with tile_rows[i % 5]:
-        color = "#ff00ff" if row.get('比率', 0) >= 20 else "#00ffff"
-        st.markdown(f'<div class="tile-item" style="border: 1px solid {color};"><div style="font-size:0.4rem;color:#888;">#{i+1}</div><div style="font-weight:bold;font-size:0.75rem;">{row["コード"]}</div><div style="color:{color};font-weight:bold;font-size:0.75rem;">{row["比率"]}%</div></div>', unsafe_allow_html=True)
-        if st.button("HACK", key=f"h_{row['コード']}", use_container_width=True):
-            st.session_state.target_ticker = str(row['コード']); st.rerun()
+df_top = get_data(market_type)
 
-# --- 5. 🕯️ 不変のロウソク足チャート (触っても動かない ✨) ---
-def draw_candle_chart(t):
-    try:
-        suffix = ".T" if st.session_state.market == "JPN" and "." not in str(t) else ""
-        h = yf.download(f"{t}{suffix}", period="2y", interval="1d", auto_adjust=True)
-        if not h.empty:
-            if isinstance(h.columns, pd.MultiIndex): h.columns = h.columns.get_level_values(0)
-            
-            h9, l9, h26, l26 = h['High'].rolling(9).max(), h['Low'].rolling(9).min(), h['High'].rolling(26).max(), h['Low'].rolling(26).min()
-            span_a, span_b = (((h9+l9)/2 + (h26+l26)/2)/2).shift(26), ((h['High'].rolling(52).max() + h['Low'].rolling(52).min())/2).shift(26)
-            
-            fig = go.Figure()
-            # 🕯️ ネオンカラーのロウソク足
-            fig.add_trace(go.Candlestick(x=h.index, open=h['Open'], high=h['High'], low=h['Low'], close=h['Close'], increasing_line_color='#ff00ff', decreasing_line_color='#00ffff', name='Price'))
-            fig.add_trace(go.Scatter(x=h.index, y=span_a, line=dict(color='rgba(255, 0, 255, 0.4)', width=1), showlegend=False))
-            fig.add_trace(go.Scatter(x=h.index, y=span_b, fill='tonexty', fillcolor='rgba(255, 0, 255, 0.15)', line=dict(color='rgba(0, 255, 255, 0.1)'), name='Kumo'))
-            
-            # 💡 【不変ハック】staticPlot=True でタップしても動かないように固定！ [cite: 2025-11-30]
-            fig.update_layout(template="plotly_dark", height=380, xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=5,b=0), dragmode=False)
-            fig.update_xaxes(range=[h.index[-60], h.index[-1] + datetime.timedelta(days=5)])
-            st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
-    except:
-        st.write("チャートハック待機中...✨")
+if df_top is not None:
+    st.subheader("🏆 TOP 15")
+    # 6列ずつループ
+    for i in range(0, len(df_top), 6):
+        cols = st.columns(6)
+        row_slice = df_top.iloc[i:i+6]
+        for idx, (original_idx, row) in enumerate(row_slice.iterrows()):
+            with cols[idx]:
+                color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#555"
+                st.markdown(f"""
+                    <div class="tile-item" style="border: 1.5px solid {color};">
+                        <div style="font-size:0.5rem;color:#888;">#{i+idx+1}</div>
+                        <div style="font-weight:bold;font-size:0.8rem;">{row['コード']}</div>
+                        <div style="color:{color};font-weight:bold;font-size:0.7rem;">{row['比率']}%</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                if st.button("選ぶ", key=f"sel_{row['コード']}"):
+                    st.session_state.selected_ticker = str(row['コード'])
+                    st.rerun()
 
-st.markdown("<hr>", unsafe_allow_html=True)
-c_bot1, c_bot2 = st.columns([0.6, 0.4])
-with c_bot1:
-    search = st.text_input("🔍 TARGET", value=st.session_state.target_ticker, label_visibility="collapsed")
-    if search != st.session_state.target_ticker: st.session_state.target_ticker = search; st.rerun()
-    st.markdown(f"📊 **HACKING: {st.session_state.target_ticker}**")
-with c_bot2:
-    if st.button("📋 COPY (TSV)"):
-        st.code(df_rank.to_csv(sep='\t', index=False))
+    # 🔥 ここから下が画面下部に固定されるよ！
+    st.markdown("<div>", unsafe_allow_html=True) # 固定エリア開始
+    search = st.text_input("🔍 選択中", value=st.session_state.selected_ticker)
+    if search:
+        try:
+            suffix = ".T" if market_type == "日本株 (JPN)" else ""
+            t_price = yf.Ticker(f"{search}{suffix}").history(period="1d")['Close'].iloc[-1]
+            c1, c2 = st.columns([0.4, 0.6])
+            c1.metric(f"🔥 {search}", f"{'¥' if suffix else '$'}{float(t_price):.1f}")
+            with c2: copy_button(search)
+        except: st.write("銘柄ハック中...")
+    st.markdown("</div>", unsafe_allow_html=True) # 固定エリア終了
 
-draw_candle_chart(st.session_state.target_ticker)
+st.caption("Produced by Maria & BLACK")
