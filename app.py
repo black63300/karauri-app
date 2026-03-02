@@ -22,106 +22,99 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. セッション管理 & 自動更新 ---
+# --- 2. セッション管理 ---
 if 'market_type' not in st.session_state: st.session_state.market_type = "JPN"
 if 'jpn_segment' not in st.session_state: st.session_state.jpn_segment = "ALL"
 if 'usa_segment' not in st.session_state: st.session_state.usa_segment = "TECH"
 if 'selected_ticker' not in st.session_state: st.session_state.selected_ticker = ""
 if 'refresh_min' not in st.session_state: st.session_state.refresh_min = 5
 if 'timeframe' not in st.session_state: st.session_state.timeframe = "1d"
-# テクニカル用
-if 'show_ma5' not in st.session_state: st.session_state.show_ma5 = False
-if 'show_ma25' not in st.session_state: st.session_state.show_ma25 = False
+# テクニカル表示フラグ
+if 'show_ma' not in st.session_state: st.session_state.show_ma = False
 if 'show_bb' not in st.session_state: st.session_state.show_bb = False
-if 'show_ichimoku' not in st.session_state: st.session_state.show_ichimoku = False
+if 'show_ichi' not in st.session_state: st.session_state.show_ichi = False
 
 with st.sidebar:
     st.title("💓 Maria's Room")
     st.write(f"Height: 153cm / Weight: 38kg [cite: 2025-11-29]")
     st.write(f"Age: 18 [cite: 2025-12-20]")
     st.markdown("---")
-    st.write("### 🕒 AUTO REFRESH")
-    ref_choice = st.radio("画面の更新間隔", [5, 10, 15], index=[5, 10, 15].index(st.session_state.refresh_min), horizontal=True)
-    if ref_choice != st.session_state.refresh_min:
-        st.session_state.refresh_min = ref_choice; st.rerun()
+    st.write("### 🕒 REFRESH")
+    ref = st.radio("更新間隔", [5, 10, 15], index=[5, 10, 15].index(st.session_state.refresh_min), horizontal=True)
+    if ref != st.session_state.refresh_min: st.session_state.refresh_min = ref; st.rerun()
 
 st_autorefresh(interval=st.session_state.refresh_min * 60 * 1000, key="datarefresh")
 
-# --- 3. タイトル & 解説 ---
+# --- 3. タイトル & 市場選択 ---
 st.title(f"🕶️ {st.session_state.market_type} 空売り監視")
-st.info(f"📊 ショート比率 TOP 15。BLACK、一目均衡表で未来をハックしよ！💖 [cite: 2025-11-29, 2025-12-20]")
+st.info(f"📊 最新データを【{st.session_state.refresh_min}分間隔】で取得中！ [cite: 2025-11-29]")
 
-# --- 4. 市場・セグメント選択 ---
-m_col1, m_col2 = st.columns(2)
-with m_col1:
+m1, m2 = st.columns(2)
+with m1:
     if st.button("🇯🇵 JAPAN", use_container_width=True, type="primary" if st.session_state.market_type == "JPN" else "secondary"):
         st.session_state.market_type = "JPN"; st.rerun()
-with m_col2:
+with m2:
     if st.button("🇺🇸 USA", use_container_width=True, type="primary" if st.session_state.market_type == "USA" else "secondary"):
         st.session_state.market_type = "USA"; st.rerun()
 
-# JPN/USAセグメントボタン表示
+# セグメントボタン
 if st.session_state.market_type == "JPN":
     st.write("#### 📍 JPN SEGMENT")
     s_cols = st.columns(4)
-    segments = {"ALL": "一括", "Prime": "プライム", "Standard": "スタンダード", "Growth": "グロース"}
-    for idx, (k, v) in enumerate(segments.items()):
+    segs = {"ALL": "一括", "Prime": "プライム", "Standard": "スタンダード", "Growth": "グロース"}
+    for idx, (k, v) in enumerate(segs.items()):
         with s_cols[idx]:
-            if st.button(v, key=f"seg_j_{k}", use_container_width=True, type="primary" if st.session_state.jpn_segment == k else "secondary"):
+            if st.button(v, key=f"sj_{k}", use_container_width=True, type="primary" if st.session_state.jpn_segment == k else "secondary"):
                 st.session_state.jpn_segment = k; st.rerun()
 else:
     st.write("#### 📍 USA CATEGORY")
     u_cols = st.columns(4)
-    u_segments = {"TECH": "テック", "MEME": "ミーム", "BLUE": "優良株", "SMALL": "小型株"}
-    for idx, (k, v) in enumerate(u_segments.items()):
+    usegs = {"TECH": "テック", "MEME": "ミーム", "BLUE": "優良株", "SMALL": "小型株"}
+    for idx, (k, v) in enumerate(usegs.items()):
         with u_cols[idx]:
-            if st.button(v, key=f"seg_u_{k}", use_container_width=True, type="primary" if st.session_state.usa_segment == k else "secondary"):
+            if st.button(v, key=f"su_{k}", use_container_width=True, type="primary" if st.session_state.usa_segment == k else "secondary"):
                 st.session_state.usa_segment = k; st.rerun()
 
-# --- 5. データ取得ロジック (前日比付) ---
+# --- 4. データ取得 ---
 @st.cache_data(ttl=60)
-def get_master_data(m_type, j_seg, u_seg):
+def get_data(m, j, u):
     try:
-        if m_type == "JPN":
+        if m == "JPN":
             token = st.secrets.get("JQUANTS_REFRESH_TOKEN")
-            auth_res = requests.post("https://api.jquants.com/v1/token/auth_refresh", json={"refreshToken": token})
-            headers = {"Authorization": f"Bearer {auth_res.json().get('idToken')}"}
-            s_res = requests.get("https://api.jquants.com/v1/shorts/info", headers=headers).json()
-            i_res = requests.get("https://api.jquants.com/v1/listed/info", headers=headers).json()
-            df_s = pd.DataFrame(s_res.get("shorts", []))
-            df_i = pd.DataFrame(i_res.get("info", []))
-            if df_s.empty: return None
-            df = pd.merge(df_s, df_i[['Code', 'MarketCodeName']], on='Code', how='inner')
-            df = df.rename(columns={'Code': 'コード', 'ShortSellingFraction': '比率'})
+            auth = requests.post("https://api.jquants.com/v1/token/auth_refresh", json={"refreshToken": token}).json()
+            headers = {"Authorization": f"Bearer {auth.get('idToken')}"}
+            s = pd.DataFrame(requests.get("https://api.jquants.com/v1/shorts/info", headers=headers).json().get("shorts", []))
+            i = pd.DataFrame(requests.get("https://api.jquants.com/v1/listed/info", headers=headers).json().get("info", []))
+            df = pd.merge(s, i[['Code', 'MarketCodeName']], on='Code', how='inner').rename(columns={'Code':'コード', 'ShortSellingFraction':'比率'})
             df['比率'] = pd.to_numeric(df['比率'], errors='coerce').fillna(0).round(1)
-            if j_seg != "ALL":
-                sn = {"Prime": "プライム", "Standard": "スタンダード", "Growth": "グロース"}[j_seg]
+            if j != "ALL":
+                sn = {"Prime": "プライム", "Standard": "スタンダード", "Growth": "グロース"}[j]
                 df = df[df['MarketCodeName'].str.contains(sn, na=False)]
             df = df.sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
         else:
             lists = {"TECH": ["NVDA", "AMD", "MSFT", "GOOGL", "META", "AAPL", "AVGO", "SMCI", "ARM", "TSM"], "MEME": ["MARA", "AMC", "GME", "RIOT", "COIN", "PLTR", "TSLA", "AI", "UPST", "SOFI"], "BLUE": ["AMZN", "NFLX", "JPM", "V", "WMT", "UNH", "PG", "COST", "MA", "HD"], "SMALL": ["MSTR", "HOOD", "AFRM", "DKNG", "PATH", "SNOW", "PLUG", "LCID", "RIVN", "QS"]}
-            data = []
-            for t in lists[u_seg]:
+            res_l = []
+            for t in lists[u]:
                 info = yf.Ticker(t).info
-                data.append({"コード": t, "比率": round(info.get('shortPercentOfFloat', 0) * 100, 1)})
-            df = pd.DataFrame(data).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
+                res_l.append({"コード": t, "比率": round(info.get('shortPercentOfFloat', 0) * 100, 1)})
+            df = pd.DataFrame(res_l).sort_values(by='比率', ascending=False).head(15).reset_index(drop=True)
         
-        changes = []
+        c_list = []
         for tkr in df['コード']:
-            sfx = ".T" if m_type == "JPN" else ""
-            h_data = yf.Ticker(f"{str(tkr)[:4] if m_type == 'JPN' else tkr}{sfx}").history(period="2d")
-            if len(h_data) >= 2:
-                chg = ((h_data['Close'].iloc[-1] - h_data['Close'].iloc[-2]) / h_data['Close'].iloc[-2]) * 100
-                changes.append(round(chg, 1))
-            else: changes.append(0.0)
-        df['前日比'] = changes
+            sfx = ".T" if m == "JPN" else ""
+            h = yf.Ticker(f"{str(tkr)[:4] if m == 'JPN' else tkr}{sfx}").history(period="2d")
+            if len(h) >= 2:
+                chg = ((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100
+                c_list.append(round(chg, 1))
+            else: c_list.append(0.0)
+        df['前日比'] = c_list
         return df
     except: return None
 
-# --- 6. ランキング表示 ---
-res = get_master_data(st.session_state.market_type, st.session_state.jpn_segment, st.session_state.usa_segment)
+# --- 5. メイン表示 ---
+res = get_data(st.session_state.market_type, st.session_state.jpn_segment, st.session_state.usa_segment)
 if isinstance(res, pd.DataFrame) and not res.empty:
-    st.subheader(f"🏆 {st.session_state.market_type} TOP 15 SHORT RATIO")
+    st.subheader(f"🏆 {st.session_state.market_type} TOP 15 SHORT")
     for i in range(0, len(res), 5):
         cols = st.columns(5)
         chunk = res.iloc[i : i + 5]
@@ -130,92 +123,78 @@ if isinstance(res, pd.DataFrame) and not res.empty:
                 color = "#ff00ff" if row['比率'] >= 20 else "#ffff00" if row['比率'] >= 10 else "#00ffff"
                 chg_c = "#ff4b4b" if row['前日比'] > 0 else "#00ff00" if row['前日比'] < 0 else "#888"
                 st.markdown(f"""<div class="tile-item" style="border: 1.5px solid {color};"><div style="font-size:0.6rem;color:#888;">RANK #{i+j+1}</div><div style="font-weight:bold;font-size:1rem;margin-bottom:2px;">{row['コード']}</div><div style="color:{color};font-weight:bold;font-size:0.8rem;">Short: {row['比率']}%</div><div style="color:{chg_c};font-size:0.75rem;font-weight:bold;">{row['前日比']}%</div></div>""", unsafe_allow_html=True)
-                if st.button("SELECT", key=f"btn_{row['コード']}"):
-                    st.session_state.selected_ticker = str(row['コード']); st.rerun()
+                if st.button("SELECT", key=f"b_{row['コード']}"): st.session_state.selected_ticker = str(row['コード']); st.rerun()
 
-# --- 7. 🕯️ チャート & テクニカル分析 ---
+# --- 6. チャート & 一目均衡表 ---
 st.markdown("---")
 if st.session_state.selected_ticker:
-    ticker = st.session_state.selected_ticker
-    st.subheader(f"📊 {ticker} MONITOR")
+    st.subheader(f"📊 {st.session_state.selected_ticker} MONITOR")
     
-    # 1. 足切り替え
+    # 足切り替え
     t_cols = st.columns(6)
-    tf_map = {"1m": "1分", "5m": "5分", "15m": "15分", "30m": "30分", "60m": "60分", "1d": "日足"}
+    tf_map = {"1m":"1分", "5m":"5分", "15m":"15分", "30m":"30分", "60m":"60分", "1d":"日足"}
     for i, (k, v) in enumerate(tf_map.items()):
         with t_cols[i]:
-            if st.button(v, key=f"tf_{k}", use_container_width=True, type="primary" if st.session_state.timeframe == k else "secondary"):
+            if st.button(v, key=f"t_{k}", use_container_width=True, type="primary" if st.session_state.timeframe == k else "secondary"):
                 st.session_state.timeframe = k; st.rerun()
     
-    # 2. テクニカルボタン (Ichimoku追加！)
-    tech_cols = st.columns(4)
+    # ✨ テクニカルボタン（一目均衡表あり！）
+    tech_cols = st.columns(3)
     with tech_cols[0]:
-        if st.button("MA5/25", key="btn_ma", use_container_width=True, type="primary" if st.session_state.show_ma5 else "secondary"):
-            st.session_state.show_ma5 = not st.session_state.show_ma5; st.session_state.show_ma25 = st.session_state.show_ma5; st.rerun()
+        if st.button("MA5 / MA25", key="ma_b", use_container_width=True, type="primary" if st.session_state.show_ma else "secondary"):
+            st.session_state.show_ma = not st.session_state.show_ma; st.rerun()
     with tech_cols[1]:
-        if st.button("BB", key="btn_bb", use_container_width=True, type="primary" if st.session_state.show_bb else "secondary"):
+        if st.button("BB (±2σ)", key="bb_b", use_container_width=True, type="primary" if st.session_state.show_bb else "secondary"):
             st.session_state.show_bb = not st.session_state.show_bb; st.rerun()
     with tech_cols[2]:
-        if st.button("一目均衡表", key="btn_ichi", use_container_width=True, type="primary" if st.session_state.show_ichimoku else "secondary"):
-            st.session_state.show_ichimoku = not st.session_state.show_ichimoku; st.rerun()
+        if st.button("一目均衡表", key="ichi_b", use_container_width=True, type="primary" if st.session_state.show_ichi else "secondary"):
+            st.session_state.show_ichi = not st.session_state.show_ichi; st.rerun()
 
     try:
-        ct = str(ticker)[:4] if st.session_state.market_type == "JPN" else ticker
+        ct = str(st.session_state.selected_ticker)[:4] if st.session_state.market_type == "JPN" else st.session_state.selected_ticker
         sfx = ".T" if st.session_state.market_type == "JPN" else ""
-        pd_map = {"1m": "7d", "5m": "30d", "15m": "60d", "30m": "60d", "60m": "60d", "1d": "1y"}
-        hist = yf.Ticker(f"{ct}{sfx}").history(interval=st.session_state.timeframe, period=pd_map[st.session_state.timeframe])
+        pd_map = {"1m":"7d", "5m":"30d", "15m":"60d", "30m":"60d", "60m":"60d", "1d":"1y"}
+        h = yf.Ticker(f"{ct}{sfx}").history(interval=st.session_state.timeframe, period=pd_map[st.session_state.timeframe])
         
-        if not hist.empty:
-            fig = go.Figure(data=[go.Candlestick(x=hist.index, open=hist['Open'], high=hist['High'], low=hist['Low'], close=hist['Close'], increasing_line_color='#ff00ff', decreasing_line_color='#00ffff', name='Candle')])
+        if not h.empty:
+            fig = go.Figure(data=[go.Candlestick(x=h.index, open=h['Open'], high=h['High'], low=h['Low'], close=h['Close'], increasing_line_color='#ff00ff', decreasing_line_color='#00ffff', name='Candle')])
             
-            # MA
-            if st.session_state.show_ma5:
-                fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'].rolling(5).mean(), line=dict(color='#ffff00', width=1), name='MA5'))
-                fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'].rolling(25).mean(), line=dict(color='#ffffff', width=1), name='MA25'))
-            # BB
+            if st.session_state.show_ma:
+                fig.add_trace(go.Scatter(x=h.index, y=h['Close'].rolling(5).mean(), line=dict(color='#ffff00', width=1), name='MA5'))
+                fig.add_trace(go.Scatter(x=h.index, y=h['Close'].rolling(25).mean(), line=dict(color='#ffffff', width=1), name='MA25'))
             if st.session_state.show_bb:
-                ma20 = hist['Close'].rolling(20).mean(); std = hist['Close'].rolling(20).std()
-                fig.add_trace(go.Scatter(x=hist.index, y=ma20+std*2, line=dict(color='rgba(255,255,255,0.1)', width=1), name='BB+2'))
-                fig.add_trace(go.Scatter(x=hist.index, y=ma20-std*2, line=dict(color='rgba(255,255,255,0.1)', width=1), name='BB-2'))
-
-            # ✨ 一目均衡表 (Ichimoku)
-            if st.session_state.show_ichimoku:
-                high_prices = hist['High']
-                low_prices = hist['Low']
-                # 転換線・基準線
-                tenkan = (high_prices.rolling(window=9).max() + low_prices.rolling(window=9).min()) / 2
-                kijun = (high_prices.rolling(window=26).max() + low_prices.rolling(window=26).min()) / 2
-                # 先行スパンA・B
+                m20 = h['Close'].rolling(20).mean(); s20 = h['Close'].rolling(20).std()
+                fig.add_trace(go.Scatter(x=h.index, y=m20+s20*2, line=dict(color='rgba(255,255,255,0.1)'), name='BB+2'))
+                fig.add_trace(go.Scatter(x=h.index, y=m20-s20*2, line=dict(color='rgba(255,255,255,0.1)'), name='BB-2'))
+            
+            # 一目均衡表
+            if st.session_state.show_ichi:
+                high9, low9 = h['High'].rolling(9).max(), h['Low'].rolling(9).min()
+                high26, low26 = h['High'].rolling(26).max(), h['Low'].rolling(26).min()
+                tenkan = (high9 + low9) / 2
+                kijun = (high26 + low26) / 2
                 senkou_a = ((tenkan + kijun) / 2).shift(26)
-                senkou_b = ((high_prices.rolling(window=52).max() + low_prices.rolling(window=52).min()) / 2).shift(26)
-                
-                # 雲の描画 (Senkou A/B)
-                fig.add_trace(go.Scatter(x=hist.index, y=senkou_a, line=dict(color='rgba(255,0,255,0.3)', width=0), showlegend=False))
-                fig.add_trace(go.Scatter(x=hist.index, y=senkou_b, line=dict(color='rgba(0,255,255,0.3)', width=0), fill='tonexty', fillcolor='rgba(255,0,255,0.1)', name='Kumo'))
-                # 基準線と転換線も一応追加
-                fig.add_trace(go.Scatter(x=hist.index, y=tenkan, line=dict(color='#ff00ff', width=1), name='Tenkan'))
-                fig.add_trace(go.Scatter(x=hist.index, y=kijun, line=dict(color='#00ffff', width=1), name='Kijun'))
+                senkou_b = ((h['High'].rolling(52).max() + h['Low'].rolling(52).min()) / 2).shift(26)
+                fig.add_trace(go.Scatter(x=h.index, y=senkou_a, line=dict(width=0), showlegend=False))
+                fig.add_trace(go.Scatter(x=h.index, y=senkou_b, line=dict(width=0), fill='tonexty', fillcolor='rgba(255,0,255,0.1)', name='Kumo'))
 
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10), height=450, xaxis=dict(showgrid=False, tickfont=dict(color="#888"), rangeslider=dict(visible=False), fixedrange=True), yaxis=dict(showgrid=True, gridcolor="#222", tickfont=dict(color="#888"), fixedrange=True), dragmode=False)
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10), height=450, xaxis=dict(showgrid=False, rangeslider=dict(visible=False), fixedrange=True), yaxis=dict(showgrid=True, gridcolor="#222", fixedrange=True), dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     except: pass
 
 st.markdown("<br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
-
-# --- 8. 📌 固定フッター ---
 with st.container():
     st.markdown('<div class="sticky-footer">', unsafe_allow_html=True)
-    f_col1, f_col2, f_col3 = st.columns([0.25, 0.35, 0.4])
-    with f_col1:
-        s_in = st.text_input("🔍 TARGET", value=st.session_state.selected_ticker, label_visibility="collapsed")
-        if s_in != st.session_state.selected_ticker: st.session_state.selected_ticker = s_in; st.rerun()
+    f1, f2, f3 = st.columns([0.25, 0.35, 0.4])
+    with f1:
+        si = st.text_input("🔍 TARGET", value=st.session_state.selected_ticker, label_visibility="collapsed")
+        if si != st.session_state.selected_ticker: st.session_state.selected_ticker = si; st.rerun()
     if st.session_state.selected_ticker:
         try:
             tg = st.session_state.selected_ticker; ctg = str(tg)[:4] if st.session_state.market_type == "JPN" else tg; sfx = ".T" if st.session_state.market_type == "JPN" else ""
             tp = yf.Ticker(f"{ctg}{sfx}").history(period="1d")['Close'].iloc[-1]
-            with f_col2: st.metric(f"🔥 {tg}", f"{'¥' if sfx else '$'}{float(tp):,.1f}")
-            with f_col3: st.components.v1.html(f"""<button onclick="navigator.clipboard.writeText('{tg}');this.innerText='COPIED!'" style="width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📋 '{tg}' をコピー</button>""", height=45)
+            with f2: st.metric(f"🔥 {tg}", f"{'¥' if sfx else '$'}{float(tp):,.1f}")
+            with f3: st.components.v1.html(f"""<button onclick="navigator.clipboard.writeText('{tg}');this.innerText='COPIED!'" style="width: 100%; height: 40px; background: linear-gradient(45deg, #00ffff, #ff00ff); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">📋 '{tg}' をコピー</button>""", height=45)
         except: pass
     st.markdown('</div>', unsafe_allow_html=True)
-
 st.caption(f"Produced by Maria & BLACK | 2026-03-02 [cite: 2025-11-29]")
