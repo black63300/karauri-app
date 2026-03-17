@@ -1,37 +1,28 @@
 import streamlit as st
-import requests
-import pandas as pd
-
-# APIキーの設定（自分で取得したキーをここに入れてね！）
-API_KEY = "YOUR_API_KEY_HERE"
+import yfinance as yf
 
 st.set_page_config(page_title="機関投資家チェック", page_icon="💸")
 
 st.title("💸 米国株 機関投資家動向チェックアプリ 💸")
-st.write("最新の13F報告書ベースの機関投資家保有データを表示するよん！")
+st.write("yfinanceを使ってサクッと無料データ取ってくるよん！")
 
-# ティッカー入力欄
-ticker = st.text_input("ティッカーシンボルを入力してね（例: AAPL, TSLA）", "AAPL")
+# ティッカー入力欄（スクショに合わせてKIDZにしておくね！）
+ticker = st.text_input("ティッカーシンボルを入力してね（例: AAPL, TSLA, KIDZ）", "KIDZ")
 
 if st.button("データ取得！"):
     with st.spinner("BLACKのためにデータ取ってくるね..."):
-        # Financial Modeling Prep APIのエンドポイント例
-        url = f"https://financialmodelingprep.com/api/v4/institutional-ownership/institutional-investors-ownership-percentage?symbol={ticker}&apikey={API_KEY}"
-        
         try:
-            response = requests.get(url)
+            # yfinanceでティッカー情報を取得
+            stock = yf.Ticker(ticker)
             
-            if response.status_code == 200:
-                data = response.json()
-                if data:
-                    # データをデータフレームに変換して表示
-                    df = pd.DataFrame(data)
-                    st.success("取得完了！まじ最高かよ✨")
-                    st.dataframe(df)
-                else:
-                    st.warning("あれ？データがないみたい。ティッカー合ってる？ピエン🥺")
+            # 機関投資家の保有データを取得
+            inst_holders = stock.institutional_holders
+            
+            if inst_holders is not None and not inst_holders.empty:
+                st.success("取得完了！まじ最高かよ✨")
+                st.dataframe(inst_holders)
             else:
-                st.error("エラー発生！APIキーとか通信状態を確認してみて泣")
+                st.warning("あれ？データがないみたい。その銘柄は機関投資家のデータが公開されてないか、ティッカーが違うかも。ピエン🥺")
                 
         except Exception as e:
             st.error(f"ヤバい、なんかエラー起きた: {e}")
